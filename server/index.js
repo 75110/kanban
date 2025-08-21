@@ -21,12 +21,43 @@ const dbConfig = {
   password: process.env.DB_PASSWORD || 'Jinlian123..',
   database: process.env.DB_NAME || 'hr_dashboard',
   waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0
+  connectionLimit: 5, // 减少连接数
+  queueLimit: 0,
+  acquireTimeout: 60000, // 60秒超时
+  timeout: 60000, // 查询超时
+  reconnect: true,
+  idleTimeout: 300000, // 5分钟空闲超时
+  maxIdle: 5 // 最大空闲连接数
 };
 
 // 创建数据库连接池
 const pool = mysql.createPool(dbConfig);
+
+// 监控连接池状态
+pool.on('connection', function (connection) {
+  console.log('新的数据库连接建立: ' + connection.threadId);
+});
+
+pool.on('error', function(err) {
+  console.error('数据库连接池错误:', err);
+  if(err.code === 'PROTOCOL_CONNECTION_LOST') {
+    console.log('数据库连接丢失，尝试重新连接...');
+  }
+});
+
+// 测试数据库连接
+async function testDatabaseConnection() {
+  try {
+    const connection = await pool.getConnection();
+    console.log('数据库连接测试成功');
+    connection.release();
+  } catch (error) {
+    console.error('数据库连接测试失败:', error);
+  }
+}
+
+// 启动时测试连接
+testDatabaseConnection();
 
 // 导入路由
 const dashboardRoutes = require('./routes/dashboard');

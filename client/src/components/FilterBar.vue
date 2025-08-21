@@ -1,11 +1,23 @@
 <template>
   <div class="filter-container">
+    <div class="filter-header">
+      <div class="filter-title">
+        <el-icon><Filter /></el-icon>
+        数据筛选
+      </div>
+      <div class="filter-summary" v-if="hasActiveFilters">
+        已应用 {{ activeFilterCount }} 个筛选条件
+      </div>
+    </div>
+
     <div class="filter-row">
       <div class="filter-item">
+        <label class="filter-label">组织区域</label>
         <el-select
           v-model="localFilters.organizationRegion"
-          placeholder="选择组织区域"
+          placeholder="全部组织区域"
           clearable
+          size="default"
           @change="handleFilterChange"
         >
           <el-option
@@ -16,12 +28,14 @@
           />
         </el-select>
       </div>
-      
+
       <div class="filter-item">
+        <label class="filter-label">区域</label>
         <el-select
           v-model="localFilters.region"
-          placeholder="选择区域"
+          placeholder="全部区域"
           clearable
+          size="default"
           @change="handleFilterChange"
         >
           <el-option
@@ -32,12 +46,14 @@
           />
         </el-select>
       </div>
-      
+
       <div class="filter-item">
+        <label class="filter-label">部门</label>
         <el-select
           v-model="localFilters.department"
-          placeholder="选择部门"
+          placeholder="全部部门"
           clearable
+          size="default"
           @change="handleFilterChange"
         >
           <el-option
@@ -48,11 +64,13 @@
           />
         </el-select>
       </div>
-      
+
       <div class="filter-item">
+        <label class="filter-label">年份</label>
         <el-select
           v-model="localFilters.year"
           placeholder="选择年份"
+          size="default"
           @change="handleFilterChange"
         >
           <el-option
@@ -63,12 +81,14 @@
           />
         </el-select>
       </div>
-      
+
       <div class="filter-item">
+        <label class="filter-label">月份</label>
         <el-select
           v-model="localFilters.month"
-          placeholder="选择月份"
+          placeholder="全年"
           clearable
+          size="default"
           @change="handleFilterChange"
         >
           <el-option
@@ -79,15 +99,15 @@
           />
         </el-select>
       </div>
-      
-      <div class="filter-item">
-        <el-button type="primary" @click="handleSearch">
+
+      <div class="filter-actions">
+        <el-button type="primary" @click="handleSearch" size="default">
           <el-icon><Refresh /></el-icon>
-          刷新
+          刷新数据
         </el-button>
-        <el-button @click="handleReset">
-          <el-icon><Search /></el-icon>
-          重置
+        <el-button @click="handleReset" size="default">
+          <el-icon><RefreshLeft /></el-icon>
+          重置筛选
         </el-button>
       </div>
     </div>
@@ -96,7 +116,7 @@
 
 <script setup>
 import { ref, watch, computed } from 'vue'
-import { Search, Refresh } from '@element-plus/icons-vue'
+import { Search, Refresh, Filter, RefreshLeft } from '@element-plus/icons-vue'
 
 const props = defineProps({
   filters: {
@@ -130,6 +150,16 @@ const months = computed(() => [
   { label: '12月', value: 12 }
 ])
 
+// 检查是否有活跃的筛选条件
+const hasActiveFilters = computed(() => {
+  return Object.values(localFilters.value).some(value => value !== '' && value !== null && value !== undefined)
+})
+
+// 活跃筛选条件数量
+const activeFilterCount = computed(() => {
+  return Object.values(localFilters.value).filter(value => value !== '' && value !== null && value !== undefined).length
+})
+
 // 监听props变化
 watch(() => props.filters, (newFilters) => {
   localFilters.value = { ...newFilters }
@@ -160,37 +190,109 @@ const handleReset = () => {
 
 <style scoped>
 .filter-container {
-  background: var(--card-bg);
-  border-radius: 8px;
-  padding: 20px;
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  transition: all 0.3s ease;
+}
+
+.filter-container:hover {
+  box-shadow: 0 6px 25px rgba(0, 0, 0, 0.1);
+}
+
+.filter-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 20px;
-  box-shadow: var(--shadow-base);
+  padding-bottom: 16px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.filter-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #262626;
+}
+
+.filter-title .el-icon {
+  color: #1890ff;
+}
+
+.filter-summary {
+  font-size: 12px;
+  color: #1890ff;
+  background: #e6f7ff;
+  padding: 4px 12px;
+  border-radius: 12px;
+  border: 1px solid #91d5ff;
 }
 
 .filter-row {
-  display: flex;
-  gap: 16px;
-  align-items: center;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 20px;
+  align-items: end;
 }
 
 .filter-item {
-  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.filter-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #595959;
+  margin: 0;
 }
 
 .filter-item .el-select {
   width: 100%;
 }
 
-@media (max-width: 768px) {
+.filter-actions {
+  display: flex;
+  gap: 12px;
+  grid-column: span 2;
+  justify-content: flex-end;
+}
+
+@media (max-width: 1200px) {
   .filter-row {
-    flex-direction: column;
-    align-items: stretch;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   }
-  
-  .filter-item {
-    min-width: auto;
-    width: 100%;
+
+  .filter-actions {
+    grid-column: span 1;
+  }
+}
+
+@media (max-width: 768px) {
+  .filter-container {
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+
+  .filter-row {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .filter-actions {
+    grid-column: span 1;
+    justify-content: stretch;
+  }
+
+  .filter-actions .el-button {
+    flex: 1;
   }
 }
 </style>

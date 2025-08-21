@@ -5,7 +5,7 @@
   --warning-color: #e6a23c;
   --danger-color: #f56c6c;
   --info-color: #909399;
-  
+
   --bg-color: #f5f7fa;
   --card-bg: #ffffff;
   --border-color: #dcdfe6;
@@ -13,10 +13,24 @@
   --text-regular: #606266;
   --text-secondary: #909399;
   --text-placeholder: #c0c4cc;
-  
+
   --shadow-light: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
   --shadow-base: 0 2px 4px rgba(0, 0, 0, 0.12), 0 0 6px rgba(0, 0, 0, 0.04);
   --shadow-dark: 0 4px 8px rgba(0, 0, 0, 0.12), 0 0 12px rgba(0, 0, 0, 0.04);
+}
+
+/* 优化字体渲染 */
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* 确保高DPI显示器上的清晰度 */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  * {
+    -webkit-font-smoothing: subpixel-antialiased;
+  }
 }
 
 /* 专业风格卡片 */
@@ -78,14 +92,17 @@
 
 .stat-number {
   font-size: 32px;
-  font-weight: bold;
+  font-weight: 600;
   margin-bottom: 8px;
+  line-height: 1.2;
 }
 
 .stat-label {
   font-size: 14px;
   opacity: 0.9;
   margin-bottom: 12px;
+  font-weight: 500;
+  line-height: 1.4;
 }
 
 .stat-growth {
@@ -93,6 +110,8 @@
   display: flex;
   align-items: center;
   gap: 4px;
+  font-weight: 500;
+  line-height: 1.3;
 }
 
 .growth-positive {
@@ -138,6 +157,8 @@
   color: var(--text-primary);
   margin-bottom: 16px;
   text-align: center;
+  line-height: 1.4;
+  letter-spacing: 0.5px;
 }
 
 /* 表格样式 */
@@ -236,4 +257,33 @@
 
 .empty-text {
   font-size: 14px;
+}
+
+/* 高DPI显示器优化 */
+@media (-webkit-min-device-pixel-ratio: 1.5), (min-resolution: 144dpi) {
+  .stat-number {
+    font-weight: 600;
+    text-shadow: none;
+  }
+
+  .stat-label,
+  .stat-growth,
+  .chart-title {
+    font-weight: 500;
+  }
+}
+
+/* 针对Windows系统的字体优化 */
+@media screen and (-ms-high-contrast: active), (-ms-high-contrast: none) {
+  * {
+    font-family: 'Microsoft YaHei', '微软雅黑', 'Segoe UI', Tahoma, Arial, sans-serif;
+  }
+}
+
+/* 简化字体渲染优化 */
+.chart-container,
+.stat-card,
+.dashboard-card {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }

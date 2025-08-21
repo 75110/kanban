@@ -3,7 +3,7 @@ import axios from 'axios'
 // 创建axios实例
 const api = axios.create({
   baseURL: '/api',
-  timeout: 10000,
+  timeout: 30000, // 增加到30秒，因为数据加载慢
   headers: {
     'Content-Type': 'application/json'
   }
@@ -25,8 +25,21 @@ api.interceptors.response.use(
   response => {
     return response.data
   },
-  error => {
-    console.error('API请求错误:', error)
+  async error => {
+    const originalRequest = error.config
+
+    // 如果是网络错误或超时，且没有重试过，则重试
+    if ((error.code === 'ECONNABORTED' || error.code === 'ENOBUFS' || error.code === 'EADDRINUSE')
+        && !originalRequest._retry) {
+      originalRequest._retry = true
+      console.log('网络错误，正在重试...', error.message)
+
+      // 等待1秒后重试
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      return api(originalRequest)
+    }
+
+    console.error('API请求错误:', error.message)
     return Promise.reject(error)
   }
 )

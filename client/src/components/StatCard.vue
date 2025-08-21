@@ -1,7 +1,7 @@
 <template>
   <div :class="['stat-card', type]">
     <div class="stat-content">
-      <div class="stat-number">{{ formatNumber(value) }}</div>
+      <div class="stat-number">{{ formatNumber(value) }}{{ suffix }}</div>
       <div class="stat-label">{{ title }}</div>
       <div v-if="growth !== null" class="stat-growth">
         <el-icon :class="growthClass">
@@ -42,6 +42,10 @@ const props = defineProps({
     type: String,
     default: 'month',
     validator: (value) => ['month', 'year'].includes(value)
+  },
+  suffix: {
+    type: String,
+    default: ''
   }
 })
 
@@ -126,7 +130,7 @@ const growthIcon = computed(() => {
 
 .stat-number {
   font-size: 36px;
-  font-weight: bold;
+  font-weight: 600;
   margin-bottom: 8px;
   line-height: 1;
 }
@@ -144,22 +148,48 @@ const growthIcon = computed(() => {
   align-items: center;
   gap: 4px;
   font-weight: 500;
+  opacity: 0.95;
 }
 
+/* 默认增长率颜色（白色背景卡片） */
 .growth-positive {
-  color: #67c23a;
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .growth-negative {
-  color: #f56c6c;
+  color: rgba(255, 255, 255, 0.9);
 }
 
+/* info类型卡片的增长率颜色（浅色背景） */
 .stat-card.info .growth-positive {
   color: #529b2e;
 }
 
 .stat-card.info .growth-negative {
   color: #c45656;
+}
+
+/* 为所有深色背景卡片设置白色增长率文字 */
+.stat-card.primary .stat-growth,
+.stat-card.success .stat-growth,
+.stat-card.warning .stat-growth,
+.stat-card.danger .stat-growth {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* 增长率图标颜色 */
+.stat-card.primary .growth-positive,
+.stat-card.success .growth-positive,
+.stat-card.warning .growth-positive,
+.stat-card.danger .growth-positive {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.stat-card.primary .growth-negative,
+.stat-card.success .growth-negative,
+.stat-card.warning .growth-negative,
+.stat-card.danger .growth-negative {
+  color: rgba(255, 255, 255, 0.9);
 }
 
 @media (max-width: 768px) {

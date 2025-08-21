@@ -11,6 +11,13 @@ export const useDashboardStore = defineStore('dashboard', {
       year: '', // 默认不选择年份，显示所有数据
       month: ''
     },
+
+    // 图表联动筛选
+    chartFilters: {
+      workAge: '', // 司龄筛选
+      education: '', // 学历筛选
+      department: '' // 部门筛选（来自图表点击）
+    },
     
     // 筛选选项
     filterOptions: {
@@ -51,6 +58,18 @@ export const useDashboardStore = defineStore('dashboard', {
     // 获取当前筛选参数
     currentFilters(state) {
       const filters = { ...state.filters }
+
+      // 合并图表筛选
+      if (state.chartFilters.workAge) {
+        filters.workAge = state.chartFilters.workAge
+      }
+      if (state.chartFilters.education) {
+        filters.education = state.chartFilters.education
+      }
+      if (state.chartFilters.department) {
+        filters.department = state.chartFilters.department
+      }
+
       // 移除空值
       Object.keys(filters).forEach(key => {
         if (!filters[key]) {
@@ -193,6 +212,34 @@ export const useDashboardStore = defineStore('dashboard', {
         this.fetchEducationDistribution(),
         this.fetchDepartmentStats()
       ])
+    },
+
+    // 设置图表筛选
+    setChartFilter(type, value) {
+      // 清除其他图表筛选，只保留当前点击的
+      this.chartFilters = {
+        workAge: '',
+        education: '',
+        department: ''
+      }
+
+      // 设置当前筛选
+      if (this.chartFilters.hasOwnProperty(type)) {
+        this.chartFilters[type] = value
+      }
+
+      // 刷新所有数据
+      this.refreshAll()
+    },
+
+    // 清除图表筛选
+    clearChartFilters() {
+      this.chartFilters = {
+        workAge: '',
+        education: '',
+        department: ''
+      }
+      this.refreshAll()
     }
   }
 })

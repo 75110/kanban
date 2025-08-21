@@ -1,9 +1,40 @@
 <template>
   <div class="chart-container">
-    <div class="chart-title">{{ title }}</div>
-    <div class="chart-content">
+    <div class="chart-header">
+      <div class="chart-title">{{ title }}</div>
+      <div class="chart-actions">
+        <el-tooltip content="导出图片" placement="top">
+          <el-button
+            size="small"
+            type="text"
+            @click="exportChart"
+            :disabled="isEmpty"
+          >
+            <el-icon><Download /></el-icon>
+          </el-button>
+        </el-tooltip>
+        <el-tooltip content="全屏查看" placement="top">
+          <el-button
+            size="small"
+            type="text"
+            @click="toggleFullscreen"
+            :disabled="isEmpty"
+          >
+            <el-icon><FullScreen /></el-icon>
+          </el-button>
+        </el-tooltip>
+      </div>
+    </div>
+    <div class="chart-content" @click="testClick">
       <!-- 图表始终存在，避免重新渲染 -->
-      <v-chart :option="chartOption" :update-options="{ notMerge: false, replaceMerge: ['xAxis','series','legend'] }" autoresize />
+      <v-chart
+        ref="chartRef"
+        :option="chartOption"
+        :update-options="{ notMerge: false, replaceMerge: ['xAxis','series','legend'] }"
+        :init-options="{ devicePixelRatio: 1, renderer: 'canvas' }"
+        autoresize
+        @click="handleChartClick"
+      />
 
       <!-- 加载遮罩层（延迟显示，避免快速闪一下） -->
       <div v-if="showLoadingOverlay" class="loading-overlay">
@@ -23,26 +54,29 @@
 <script setup>
 import { computed, watch, ref, onMounted, onBeforeUnmount } from 'vue'
 import { use } from 'echarts/core'
-import { CanvasRenderer } from 'echarts/renderers'
+import { CanvasRenderer, SVGRenderer } from 'echarts/renderers'
 import { PieChart, BarChart } from 'echarts/charts'
 import {
   TitleComponent,
   TooltipComponent,
   LegendComponent,
-  GridComponent
+  GridComponent,
+  DataZoomComponent
 } from 'echarts/components'
 import VChart, { THEME_KEY } from 'vue-echarts'
-import { Loading, DocumentRemove } from '@element-plus/icons-vue'
+import { Loading, DocumentRemove, Download, FullScreen } from '@element-plus/icons-vue'
 
 // 注册ECharts组件
 use([
+  SVGRenderer,
   CanvasRenderer,
   PieChart,
   BarChart,
   TitleComponent,
   TooltipComponent,
   LegendComponent,
-  GridComponent
+  GridComponent,
+  DataZoomComponent
 ])
 
 const props = defineProps({
@@ -67,12 +101,56 @@ const props = defineProps({
     type: String,
     default: 'donut', // 'donut' 环形, 'solid' 实心
     validator: (value) => ['donut', 'solid'].includes(value)
+  },
+  chartType: {
+    type: String,
+    default: '', // 'workAge', 'education', 'department'
+    validator: (value) => ['', 'workAge', 'education', 'department'].includes(value)
   }
 })
+
+// 定义事件
+const emit = defineEmits(['chart-click'])
+
+// 处理图表点击事件
+const handleChartClick = (params) => {
+  console.log('图表点击:', props.title, params)
+
+  if (!params || !props.chartType) {
+    console.log('点击参数无效:', { params, chartType: props.chartType })
+    return
+  }
+
+  // 获取点击的值，对于不同类型的图表，参数结构可能不同
+  let clickedValue = null
+
+  if (props.type === 'pie') {
+    // 饼图：使用 params.name
+    clickedValue = params.name
+  } else if (props.type === 'bar') {
+    // 柱状图：使用 params.name 或 params.axisValue
+    clickedValue = params.name || params.axisValue
+  }
+
+  if (clickedValue) {
+    const eventData = {
+      type: props.chartType,
+      value: clickedValue,
+      data: params
+    }
+    console.log('✅ 发送点击事件:', eventData)
+    emit('chart-click', eventData)
+  } else {
+    console.log('❌ 无法获取点击值:', params)
+  }
+}
 
 // 延迟的加载遮罩，避免轻微抖动造成闪一下
 const showLoadingOverlay = ref(false)
 let overlayTimer = null
+
+// 图表引用
+const chartRef = ref(null)
 
 watch(() => props.loading, (val) => {
   if (val) {
@@ -90,6 +168,30 @@ watch(() => props.loading, (val) => {
 onBeforeUnmount(() => {
   overlayTimer && clearTimeout(overlayTimer)
 })
+
+// 导出图表
+const exportChart = () => {
+  if (chartRef.value) {
+    const chart = chartRef.value.getEchartsInstance()
+    const url = chart.getDataURL({
+      type: 'png',
+      pixelRatio: 2,
+      backgroundColor: '#fff'
+    })
+
+    // 创建下载链接
+    const link = document.createElement('a')
+    link.download = `${props.title}.png`
+    link.href = url
+    link.click()
+  }
+}
+
+// 全屏查看
+const toggleFullscreen = () => {
+  // 这里可以实现全屏功能，暂时用消息提示
+  console.log('全屏功能待实现')
+}
 
 
 // 检查是否为空数据
@@ -110,7 +212,13 @@ const chartOption = computed(() => {
       animationEasing: 'cubicOut',
       tooltip: {
         trigger: 'item',
-        formatter: '{b}: {c} ({d}%)'
+        formatter: '{b}: {c} ({d}%)',
+        confine: true,
+        hideDelay: 100,
+        textStyle: {
+          fontSize: 13,
+          fontWeight: 500
+        }
       },
       legend: {
         show: false
@@ -119,8 +227,8 @@ const chartOption = computed(() => {
         {
           name: props.title,
           type: 'pie',
-          radius: props.pieStyle === 'solid' ? '80%' : ['50%', '80%'],
-          center: props.pieStyle === 'solid' ? ['65%', '50%'] : ['65%', '50%'],
+          radius: props.pieStyle === 'solid' ? '70%' : ['40%', '70%'],
+          center: ['50%', '50%'],
           avoidLabelOverlap: false,
           itemStyle: {
             borderRadius: 8,
@@ -132,9 +240,11 @@ const chartOption = computed(() => {
             position: props.pieStyle === 'solid' ? 'inside' : 'outside',
             formatter: props.pieStyle === 'solid' ? '{b}\n{d}%' : '{b}: {d}%',
             fontSize: 12,
+            fontWeight: 'normal',
             color: props.pieStyle === 'solid' ? '#fff' : '#333',
-            overflow: 'truncate',
-            ellipsis: '...'
+            overflow: 'break',
+            width: 60,
+            lineHeight: 14
           },
           emphasis: {
             label: {
@@ -145,12 +255,15 @@ const chartOption = computed(() => {
           },
           labelLine: {
             show: props.pieStyle !== 'solid',
-            length: 6,
-            length2: 6
+            length: 8,
+            length2: 10,
+            smooth: true
           },
           data: labels.map((label, index) => ({
             value: values[index],
-            name: label
+            name: label,
+            // 确保数据项可以被点击
+            selected: false
           }))
         }
       ],
@@ -206,6 +319,10 @@ const chartOption = computed(() => {
         formatter: function(params) {
           const percentage = totalValue > 0 ? ((params.value[2] / totalValue) * 100).toFixed(1) : 0
           return `${params.name}<br/>人数: ${params.value[2]}人<br/>占比: ${percentage}%`
+        },
+        textStyle: {
+          fontSize: 13,
+          fontWeight: 500
         }
       },
       grid: {
@@ -250,32 +367,79 @@ const chartOption = computed(() => {
         trigger: 'axis',
         axisPointer: {
           type: 'shadow'
-        }
+        },
+        backgroundColor: 'rgba(50, 50, 50, 0.9)',
+        borderColor: '#333',
+        textStyle: {
+          color: '#fff',
+          fontSize: 13,
+          fontWeight: 500
+        },
+        confine: true,
+        hideDelay: 100
       },
       grid: {
-        left: '8%',
-        right: '4%',
+        left: '3%',
+        right: '3%',
         top: '10%',
-        bottom: '15%',
+        bottom: labels.length > 8 ? '25%' : '15%',
         containLabel: true
       },
+      dataZoom: labels.length > 10 ? [
+        {
+          type: 'slider',
+          show: true,
+          xAxisIndex: [0],
+          start: 0,
+          end: 50
+        },
+        {
+          type: 'inside',
+          xAxisIndex: [0],
+          start: 0,
+          end: 50
+        }
+      ] : [],
       xAxis: {
         type: 'category',
-        data: labels,
+        data: labels || [],
         axisLabel: {
           interval: 0,
-          rotate: labels.length > 8 ? 45 : 0,
-          fontSize: 10
-        }
+          rotate: (labels && labels.length > 8) ? 45 : 0,
+          fontSize: 12,
+          color: '#666'
+        },
+        axisLine: {
+          lineStyle: {
+            color: '#e6e6e6'
+          }
+        },
+        boundaryGap: true
       },
       yAxis: {
-        type: 'value'
+        type: 'value',
+        min: 0,
+        axisLabel: {
+          fontSize: 12,
+          color: '#666'
+        },
+        axisLine: {
+          lineStyle: {
+            color: '#e6e6e6'
+          }
+        },
+        splitLine: {
+          lineStyle: {
+            color: '#f0f0f0'
+          }
+        }
       },
       series: [
         {
           name: props.title,
           type: 'bar',
           data: values,
+          barWidth: '60%',
           itemStyle: {
             borderRadius: [4, 4, 0, 0],
             color: {
@@ -304,37 +468,72 @@ const chartOption = computed(() => {
                 ]
               }
             }
+          },
+          label: {
+            show: values.length <= 10,
+            position: 'top',
+            fontSize: 11,
+            color: '#666'
           }
         }
       ]
     }
   }
 })
+
+// 测试点击函数
+const testClick = (event) => {
+  console.log('容器点击测试:', props.title, event)
+}
+
+// vue-echarts 会自动处理 @click 事件
 </script>
 
 <style scoped>
 .chart-container {
   background: white;
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
   height: 100%;
   display: flex;
   flex-direction: column;
-  transition: all 0.3s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid rgba(0, 0, 0, 0.04);
 }
 
 .chart-container:hover {
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+  transform: translateY(-4px);
+  border-color: rgba(24, 144, 255, 0.2);
+}
+
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
 }
 
 .chart-title {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 600;
-  color: #333;
-  margin-bottom: 16px;
-  text-align: center;
+  color: #262626;
+  margin: 0;
+}
+
+.chart-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.chart-actions .el-button {
+  color: #8c8c8c;
+  transition: color 0.2s;
+}
+
+.chart-actions .el-button:hover {
+  color: #1890ff;
 }
 
 .chart-content {

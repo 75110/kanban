@@ -47,6 +47,26 @@ function transformEducation(education) {
 }
 
 /**
+ * 反向学历转换函数 - 将显示值转换为数据库查询条件
+ */
+function reverseTransformEducation(displayEducation) {
+  switch (displayEducation) {
+    case '高中及以下':
+      return ['小学', '初中', '中专', '职高', '高中'];
+    case '大专':
+      return ['专科', '大专'];
+    case '本科':
+      return ['本科', '成人本科'];
+    case '硕士及以上':
+      return ['硕士', '研究生'];
+    case '其他':
+      return ['其他'];
+    default:
+      return [];
+  }
+}
+
+/**
  * 区域转换函数
  */
 function transformRegion(area) {
@@ -139,6 +159,7 @@ function getLastYearDateRange(year, month) {
 module.exports = {
   transformWorkAge,
   transformEducation,
+  reverseTransformEducation,
   transformRegion,
   calculateYearOverYear,
   calculateMonthOverMonth,
