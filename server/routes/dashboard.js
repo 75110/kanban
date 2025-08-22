@@ -13,6 +13,24 @@ const {
 } = require('../utils/dataTransform');
 
 /**
+ * 获取在职时间筛选条件
+ */
+function getTenureCondition(tenure) {
+  switch (tenure) {
+    case '1-3月':
+      return { condition: 'DATEDIFF(resignation_date, entry_date) <= 90' };
+    case '3-6月':
+      return { condition: 'DATEDIFF(resignation_date, entry_date) > 90 AND DATEDIFF(resignation_date, entry_date) <= 180' };
+    case '6-12月':
+      return { condition: 'DATEDIFF(resignation_date, entry_date) > 180 AND DATEDIFF(resignation_date, entry_date) <= 365' };
+    case '1年以上':
+      return { condition: 'DATEDIFF(resignation_date, entry_date) > 365' };
+    default:
+      return null;
+  }
+}
+
+/**
  * 获取看板统计数据
  */
 router.get('/stats', async (req, res) => {
@@ -99,7 +117,7 @@ router.get('/stats', async (req, res) => {
         lastYearStats = await getCurrentStats(whereClause, lastYearParams, pool, { department, workAge, education, year: parseInt(year) - 1, month });
       }
     }
-    
+
     // 计算比率
     const calculateRates = (stats) => {
       const total = stats.totalEmployees || 1; // 避免除零
@@ -138,7 +156,7 @@ router.get('/stats', async (req, res) => {
         } : null
       }
     };
-    
+
     res.json(stats);
   } catch (error) {
     console.error('获取看板统计数据失败:', error);
@@ -151,14 +169,14 @@ router.get('/stats', async (req, res) => {
  */
 async function getCurrentStats(whereClause, params, pool, { department, workAge, education, year, month }) {
   const connection = await pool.getConnection();
-  
+
   try {
     // 在职员工数（完全受筛选条件影响）
     const [totalResult] = await connection.execute(
       `SELECT COUNT(*) as count FROM employee_roster ${whereClause}`,
       params
     );
-    
+
     // 新入职人数（当月或当年）
     let newResult;
     if (year && month) {
@@ -178,14 +196,14 @@ async function getCurrentStats(whereClause, params, pool, { department, workAge,
         params
       );
     }
-    
+
     // 离职人数
     const resignedWhereClause = whereClause.replace('entry_date', 'resignation_date');
     const [resignedResult] = await connection.execute(
       `SELECT COUNT(*) as count FROM resignation_monitoring ${resignedWhereClause}`,
       params
     );
-    
+
     // 异动人数 - 简化查询，暂时只统计总数
     let transferResult;
     try {
@@ -204,7 +222,7 @@ async function getCurrentStats(whereClause, params, pool, { department, workAge,
       console.log('Personnel changes table query failed, using 0:', error.message);
       transferResult = [{ count: 0 }];
     }
-    
+
     const result = {
       totalEmployees: totalResult[0].count,
       newEmployees: newResult[0].count,
@@ -274,13 +292,13 @@ router.get('/work-age-distribution', async (req, res) => {
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
     const connection = await pool.getConnection();
-    
+
     try {
       const [rows] = await connection.execute(
         `SELECT work_age_months FROM employee_roster ${whereClause}`,
         params
       );
-      
+
       // 统计各工龄段人数
       const distribution = {
         '1年以下': 0,
@@ -295,14 +313,14 @@ router.get('/work-age-distribution', async (req, res) => {
         '9-10年': 0,
         '10年以上': 0
       };
-      
+
       rows.forEach(row => {
         const workAgeGroup = transformWorkAge(row.work_age_months);
         if (workAgeGroup && distribution.hasOwnProperty(workAgeGroup)) {
           distribution[workAgeGroup]++;
         }
       });
-      
+
       res.json(distribution);
     } finally {
       connection.release();
@@ -567,7 +585,7 @@ function getWorkAgeMonthsRange(workAgeDisplay) {
  */
 router.get('/turnover-stats', async (req, res) => {
   try {
-    const { organizationRegion, region, department, year, month } = req.query;
+    const { organizationRegion, region, department, year, month, reason, position, tenure } = req.query;
     const pool = req.pool;
 
     // 构建查询条件
@@ -582,6 +600,27 @@ router.get('/turnover-stats', async (req, res) => {
     if (department) {
       whereConditions.push('department = ?');
       params.push(department);
+    }
+
+    if (reason) {
+      whereConditions.push('resignation_reason = ?');
+      params.push(reason);
+    }
+
+    if (position) {
+      whereConditions.push('position = ?');
+      params.push(position);
+    }
+
+    // 处理在职时间筛选
+    if (tenure) {
+      const tenureCondition = getTenureCondition(tenure);
+      if (tenureCondition) {
+        whereConditions.push(tenureCondition.condition);
+        if (tenureCondition.params) {
+          params.push(...tenureCondition.params);
+        }
+      }
     }
 
     // 日期范围条件

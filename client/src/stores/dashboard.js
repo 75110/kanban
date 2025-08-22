@@ -277,6 +277,26 @@ export const useDashboardStore = defineStore('dashboard', {
         position: '',
         tenure: ''
       }
+    },
+
+    // 页面切换时的筛选状态管理
+    handlePageSwitch(fromPage, toPage) {
+      // 清除图表筛选
+      this.clearChartFilters()
+
+      // 如果从人才流失页面切换出去，清除人才流失筛选
+      if (fromPage === 'turnover') {
+        this.clearTurnoverChartFilters()
+      }
+
+      // 可以根据需要添加更多页面切换逻辑
+    },
+
+    // 清除所有筛选（包括顶部筛选器和图表筛选）
+    clearAllFilters() {
+      this.resetFilters()
+      this.clearChartFilters()
+      this.clearTurnoverChartFilters()
     }
   }
 })

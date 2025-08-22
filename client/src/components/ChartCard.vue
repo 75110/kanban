@@ -155,26 +155,9 @@ let overlayTimer = null
 // 图表引用
 const chartRef = ref(null)
 
-// 监听数据变化，强制更新图表
-watch(
-  () => props.data,
-  async (newData, oldData) => {
-    if (chartRef.value && newData && oldData) {
-      // 检查数据是否真的发生了变化
-      const dataChanged =
-        JSON.stringify(newData.labels) !== JSON.stringify(oldData.labels) ||
-        JSON.stringify(newData.values) !== JSON.stringify(oldData.values)
+// 渲染计数器（仅用于调试）
+const renderCount = ref(0)
 
-      if (dataChanged) {
-        console.log(`${props.title} - 强制更新图表`)
-        await nextTick()
-        // 强制重新设置选项
-        chartRef.value.setOption(chartOption.value, true)
-      }
-    }
-  },
-  { deep: true }
-)
 
 watch(() => props.loading, (val) => {
   if (val) {
@@ -220,21 +203,28 @@ const toggleFullscreen = () => {
 
 // 检查是否为空数据
 const isEmpty = computed(() => {
-  return !props.data.labels?.length || !props.data.values?.length
+  return !props.data || !props.data.labels?.length || !props.data.values?.length
 })
 
 // 图表配置
 const chartOption = computed(() => {
-  if (isEmpty.value) return {}
+  if (isEmpty.value || !props.data) return {}
 
   const { labels, values } = props.data
 
-  // 添加调试信息
-  console.log(`${props.title} - 图表数据更新:`, {
-    labels: labels?.length,
-    values: values?.length,
-    total: values?.reduce((sum, val) => sum + val, 0)
-  })
+  // 添加调试信息 - 只在开发环境输出
+  if (process.env.NODE_ENV === 'development') {
+    renderCount.value++
+    const dataHash = JSON.stringify({ labels, values }).slice(0, 50)
+    const stackTrace = new Error().stack?.split('\n')[1]?.trim()
+    console.log(`${props.title} - 图表数据更新 (第${renderCount.value}次):`, {
+      labels: labels?.length,
+      values: values?.length,
+      total: values?.reduce((sum, val) => sum + val, 0),
+      dataHash,
+      calledFrom: stackTrace
+    })
+  }
 
   if (props.type === 'pie') {
     return {

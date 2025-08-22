@@ -4,17 +4,21 @@
     <div class="page-header">
       <div class="page-title-section">
         <div class="logo-title-container">
-          <img src="/src/assets/images/logo.png" alt="公司Logo" class="page-logo" />
-          <h1 class="page-title">人事数据看板</h1>
-          <p class="page-subtitle">实时监控人力资源关键指标</p>
+          <div class="logo-and-badge">
+            <img src="/src/assets/images/logo.png" alt="公司Logo" class="page-logo" />
+          </div>
+          <div class="title-content">
+            <h1 class="page-title">人事数据看板</h1>
+            <p class="page-subtitle">实时监控人力资源关键指标</p>
+          </div>
         </div>
       </div>
       <div class="page-actions">
-        <el-button type="default" @click="exportDashboard" size="default">
+        <el-button type="default" @click="exportDashboard" size="default" class="action-btn">
           <el-icon><Download /></el-icon>
           导出报告
         </el-button>
-        <el-button type="primary" @click="refreshData" size="default" :loading="isRefreshing">
+        <el-button type="primary" @click="refreshData" size="default" :loading="isRefreshing" class="action-btn">
           <el-icon><Refresh /></el-icon>
           {{ isRefreshing ? '刷新中...' : '刷新数据' }}
         </el-button>
@@ -154,6 +158,7 @@
         <!-- 第一行：3个图表 -->
         <div class="charts-main-row">
           <ChartCard
+            v-if="dashboardStore.workAgeChartData"
             title="司龄分布情况"
             type="pie"
             chart-type="workAge"
@@ -162,6 +167,7 @@
             @chart-click="handleChartClick"
           />
           <ChartCard
+            v-if="dashboardStore.educationChartData"
             title="学历分布"
             type="pie"
             pie-style="solid"
@@ -171,6 +177,7 @@
             @chart-click="handleChartClick"
           />
           <ChartCard
+            v-if="dashboardStore.departmentChartData"
             title="各部门员异动"
             type="bar"
             chart-type="department"
@@ -183,6 +190,7 @@
         <!-- 第二行：各部门在职人数详细图表 -->
         <div class="charts-detail-row">
           <ChartCard
+            v-if="dashboardStore.departmentChartData"
             title="各部门在职人数"
             type="bar"
             chart-type="department"
@@ -198,8 +206,22 @@
     <div v-if="activeTab === 'turnover'" class="turnover-content">
       <!-- 人才流失分析筛选状态显示 -->
       <div v-if="hasTurnoverFilters" class="turnover-filters-display">
-        <div class="filter-tags">
-          <span class="filter-label">当前筛选：</span>
+        <div class="chart-filters-header">
+          <span class="chart-filters-title">
+            <el-icon><Filter /></el-icon>
+            人才流失筛选
+          </span>
+          <el-button
+            type="text"
+            size="small"
+            @click="clearAllTurnoverFilters"
+            class="clear-filters-btn"
+          >
+            <el-icon><Close /></el-icon>
+            清除筛选
+          </el-button>
+        </div>
+        <div class="chart-filters-tags">
           <el-tag
             v-if="dashboardStore.turnoverChartFilters.department"
             type="primary"
@@ -232,14 +254,6 @@
           >
             在职时间：{{ dashboardStore.turnoverChartFilters.tenure }}
           </el-tag>
-          <el-button
-            type="text"
-            size="small"
-            @click="clearAllTurnoverFilters"
-            class="clear-all-btn"
-          >
-            清除全部
-          </el-button>
         </div>
       </div>
 
@@ -270,27 +284,30 @@
         <!-- 第一行：离职部门分布、在职时间分布和离职原因 -->
         <div class="charts-main-row">
           <ChartCard
+            v-if="turnoverDepartmentData"
             title="离职最多的部门前5"
             type="pie"
             chart-type="resignationDepartment"
-            :data="turnoverChartData.departmentData"
+            :data="turnoverDepartmentData"
             :loading="turnoverLoading.department"
             @chart-click="handleTurnoverChartClick"
           />
           <ChartCard
+            v-if="turnoverTenureData"
             title="离职人员在职时间分布"
             type="pie"
             pie-style="solid"
             chart-type="resignationTenure"
-            :data="turnoverChartData.tenureData"
+            :data="turnoverTenureData"
             :loading="turnoverLoading.tenure"
             @chart-click="handleTurnoverChartClick"
           />
           <ChartCard
+            v-if="turnoverReasonData"
             title="离职原因分析"
             type="bar"
             chart-type="resignationReason"
-            :data="turnoverChartData.reasonData"
+            :data="turnoverReasonData"
             :loading="turnoverLoading.reason"
             @chart-click="handleTurnoverChartClick"
           />
@@ -299,10 +316,11 @@
         <!-- 第二行：离职人员部门统计 -->
         <div class="charts-detail-row">
           <ChartCard
+            v-if="turnoverDepartmentStatsData"
             title="离职人员的部门人数统计"
             type="bar"
             chart-type="resignationDepartmentStats"
-            :data="turnoverChartData.departmentStatsData"
+            :data="turnoverDepartmentStatsData"
             :loading="turnoverLoading.departmentStats"
             @chart-click="handleTurnoverChartClick"
           />
@@ -311,10 +329,11 @@
         <!-- 第三行：离职岗位分布 -->
         <div class="charts-detail-row">
           <ChartCard
+            v-if="turnoverPositionData"
             title="离职岗位分布"
             type="bar"
             chart-type="resignationPosition"
-            :data="turnoverChartData.positionData"
+            :data="turnoverPositionData"
             :loading="turnoverLoading.position"
             @chart-click="handleTurnoverChartClick"
           />
@@ -325,7 +344,7 @@
 </template>
 
 <script setup>
-import { onMounted, computed, watch, ref } from 'vue'
+import { onMounted, computed, watch, ref, nextTick, shallowRef } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Refresh, Download, Filter, Close } from '@element-plus/icons-vue'
 import { useDashboardStore } from '../stores/dashboard'
@@ -345,6 +364,12 @@ const activeTab = ref('overview')
 // 防抖定时器
 const debounceTimer = ref(null)
 
+// 组件是否已初始化完成
+const isInitialized = ref(false)
+
+// 正在切换标签页的标志
+const isSwitchingTab = ref(false)
+
 // 人才流失分析数据
 const turnoverStats = ref({
   totalResigned: 0,
@@ -355,14 +380,15 @@ const turnoverStats = ref({
   }
 })
 
-// 人才流失图表数据
-const turnoverChartData = ref({
-  departmentData: { labels: [], values: [] },
-  reasonData: { labels: [], values: [] },
-  departmentStatsData: { labels: [], values: [] },
-  positionData: { labels: [], values: [] },
-  tenureData: { labels: [], values: [] }
-})
+// 人才流失图表数据 - 拆分为独立 shallowRef 以隔离更新
+const turnoverDepartmentData = shallowRef(null)
+const turnoverReasonData = shallowRef(null)
+const turnoverDepartmentStatsData = shallowRef(null)
+const turnoverPositionData = shallowRef(null)
+const turnoverTenureData = shallowRef(null)
+
+// 总览图表数据
+const overallChartData = ref(null)
 
 // 人才流失加载状态
 const turnoverLoading = ref({
@@ -473,7 +499,7 @@ const handleReset = async () => {
 const handleChartClick = (event) => {
   console.log('图表点击事件:', event)
   dashboardStore.setChartFilter(event.type, event.value)
-  ElMessage.success(`已筛选${getFilterTypeName(event.type)}: ${event.value}`)
+  // ElMessage.success(`已筛选${getFilterTypeName(event.type)}: ${event.value}`)
 }
 
 // 获取筛选类型名称
@@ -494,27 +520,47 @@ const hasActiveChartFilters = computed(() => {
 // 清除所有图表筛选
 const clearChartFilters = () => {
   dashboardStore.clearChartFilters()
-  ElMessage.success('已清除图表筛选')
+  // ElMessage.success('已清除图表筛选')
 }
 
 // 清除特定图表筛选
 const clearSpecificChartFilter = (type) => {
   dashboardStore.chartFilters[type] = ''
   dashboardStore.refreshAll()
-  ElMessage.success(`已清除${getFilterTypeName(type)}筛选`)
+  // ElMessage.success(`已清除${getFilterTypeName(type)}筛选`)
 }
 
 // 处理标签页切换
-const handleTabChange = (tab) => {
-  activeTab.value = tab.paneName
-  if (tab.paneName === 'turnover') {
-    // 切换到人才流失分析时，加载相关数据
-    loadTurnoverData()
+const handleTabChange = async (tab) => {
+  const previousTab = activeTab.value;
+  activeTab.value = tab.paneName;
+
+  if (previousTab !== tab.paneName) {
+    isSwitchingTab.value = true;
+    try {
+      // 暂时禁用watch监听器，避免重复刷新
+      isInitialized.value = false;
+
+      // 使用 store 的页面切换方法来管理筛选状态
+      dashboardStore.handlePageSwitch(previousTab, tab.paneName);
+
+      // 重新启用watch监听器
+      setTimeout(() => {
+        isInitialized.value = true;
+      }, 100);
+
+      // 如果切换到人才流失页面，加载相关数据
+      if (tab.paneName === 'turnover') {
+        await loadTurnoverData();
+      }
+    } finally {
+      isSwitchingTab.value = false;
+    }
   }
-}
+};
 
 // 加载人才流失分析数据 - 优化为分批加载以减少数据库压力
-const loadTurnoverData = async () => {
+const loadTurnoverData = async (options = {}) => {
   // 清除之前的防抖定时器
   if (debounceTimer.value) {
     clearTimeout(debounceTimer.value)
@@ -523,42 +569,64 @@ const loadTurnoverData = async () => {
   // 防抖：延迟500ms执行，避免频繁请求
   return new Promise((resolve) => {
     debounceTimer.value = setTimeout(async () => {
-      const loadingMessage = ElMessage({
-        message: '正在加载人才流失数据...',
-        type: 'info',
-        duration: 0, // 不自动关闭
-        showClose: false
-      })
-
       try {
         console.log('开始加载人才流失数据...')
 
-        // 串行加载以减少数据库压力
-        loadingMessage.message = '正在加载统计数据...'
-        await fetchTurnoverStats()
+        // 并行加载所有数据，避免重复渲染
+        const promises = []
 
-        loadingMessage.message = '正在加载部门数据...'
-        await fetchTurnoverDepartmentData()
+        promises.push(fetchTurnoverStats())
 
-        loadingMessage.message = '正在加载原因分析...'
-        await fetchTurnoverReasonData()
+        if (options.exclude !== 'department') {
+          promises.push(dashboardApi.getTurnoverDepartmentDistribution(turnoverFilters.value))
+        } else {
+          promises.push(null)
+        }
 
-        loadingMessage.message = '正在加载部门统计...'
-        await fetchTurnoverDepartmentStats()
+        if (options.exclude !== 'reason') {
+          const filtersWithoutReason = { ...turnoverFilters.value }
+          delete filtersWithoutReason.reason
+          promises.push(dashboardApi.getTurnoverReasonAnalysis(filtersWithoutReason))
+        } else {
+          promises.push(null)
+        }
 
-        loadingMessage.message = '正在加载岗位数据...'
-        await fetchTurnoverPositionData()
+        if (options.exclude !== 'departmentStats') {
+          promises.push(dashboardApi.getTurnoverDepartmentStats(turnoverFilters.value))
+        } else {
+          promises.push(null)
+        }
 
-        loadingMessage.message = '正在加载在职时间数据...'
-        await fetchTurnoverTenureData()
+        if (options.exclude !== 'position') {
+          const filtersWithoutPosition = { ...turnoverFilters.value }
+          delete filtersWithoutPosition.position
+          promises.push(dashboardApi.getTurnoverPositionDistribution(filtersWithoutPosition))
+        } else {
+          promises.push(null)
+        }
+
+        if (options.exclude !== 'tenure') {
+          const filtersWithoutTenure = { ...turnoverFilters.value }
+          delete filtersWithoutTenure.tenure
+          promises.push(dashboardApi.getTurnoverTenureDistribution(filtersWithoutTenure))
+        } else {
+          promises.push(null)
+        }
+
+        // 等待所有数据加载完成
+        const [stats, departmentData, reasonData, departmentStatsData, positionData, tenureData] = await Promise.all(promises)
+
+        // 直接更新独立的 shallowRef
+        if (departmentData) turnoverDepartmentData.value = departmentData;
+        if (reasonData) turnoverReasonData.value = reasonData;
+        if (departmentStatsData) turnoverDepartmentStatsData.value = departmentStatsData;
+        if (positionData) turnoverPositionData.value = positionData;
+        if (tenureData) turnoverTenureData.value = tenureData;
 
         console.log('人才流失数据加载完成')
-        loadingMessage.close()
-        ElMessage.success('数据加载完成')
         resolve()
       } catch (error) {
         console.error('加载人才流失数据失败:', error)
-        loadingMessage.close()
         ElMessage.error('加载人才流失数据失败')
         resolve()
       }
@@ -592,6 +660,8 @@ const fetchTurnoverDepartmentData = async () => {
       total: data.values?.reduce((sum, val) => sum + val, 0)
     })
     if (data) {
+      // 使用 nextTick 来避免重复渲染
+      await nextTick()
       turnoverChartData.value.departmentData = data
     }
   } catch (error) {
@@ -615,11 +685,13 @@ const fetchTurnoverReasonData = async () => {
     console.log('fetchTurnoverReasonData - 返回数据:', data)
     console.log('fetchTurnoverReasonData - 数据总数:', data?.values?.reduce((sum, val) => sum + val, 0))
     if (data) {
+      const oldReasonData = turnoverChartData.value.reasonData
       console.log('更新前的reasonData:', {
-        labels: turnoverChartData.value.reasonData.labels?.slice(0, 3),
-        values: turnoverChartData.value.reasonData.values?.slice(0, 3),
-        total: turnoverChartData.value.reasonData.values?.reduce((sum, val) => sum + val, 0)
+        labels: oldReasonData?.labels?.slice(0, 3) || [],
+        values: oldReasonData?.values?.slice(0, 3) || [],
+        total: oldReasonData?.values?.reduce((sum, val) => sum + val, 0) || 0
       })
+      await nextTick()
       turnoverChartData.value.reasonData = data
       console.log('更新后的reasonData:', {
         labels: data.labels?.slice(0, 3),
@@ -628,7 +700,7 @@ const fetchTurnoverReasonData = async () => {
       })
 
       // 显示数据变化百分比
-      const oldTotal = turnoverChartData.value.reasonData.values?.reduce((sum, val) => sum + val, 0) || 0
+      const oldTotal = oldReasonData?.values?.reduce((sum, val) => sum + val, 0) || 0
       const newTotal = data.values?.reduce((sum, val) => sum + val, 0) || 0
       const changePercent = oldTotal > 0 ? ((newTotal - oldTotal) / oldTotal * 100).toFixed(1) : 0
       console.log(`🔍 离职原因数据变化: ${oldTotal} → ${newTotal} (${changePercent}%)`)
@@ -647,6 +719,7 @@ const fetchTurnoverDepartmentStats = async () => {
   try {
     const data = await dashboardApi.getTurnoverDepartmentStats(turnoverFilters.value)
     if (data) {
+      await nextTick()
       turnoverChartData.value.departmentStatsData = data
     }
   } catch (error) {
@@ -667,6 +740,7 @@ const fetchTurnoverPositionData = async () => {
 
     const data = await dashboardApi.getTurnoverPositionDistribution(filtersWithoutPosition)
     if (data) {
+      await nextTick()
       turnoverChartData.value.positionData = data
     }
   } catch (error) {
@@ -690,6 +764,7 @@ const fetchTurnoverTenureData = async () => {
     console.log('fetchTurnoverTenureData - 返回数据:', data)
     if (data) {
       console.log('更新前的tenureData:', turnoverChartData.value.tenureData)
+      await nextTick()
       turnoverChartData.value.tenureData = data
       console.log('更新后的tenureData:', turnoverChartData.value.tenureData)
     }
@@ -747,14 +822,15 @@ const hasTurnoverFilters = computed(() => {
 // 清除单个人才流失筛选
 const clearTurnoverFilter = (type) => {
   dashboardStore.turnoverChartFilters[type] = ''
-  ElMessage.success(`已清除${type}筛选`)
+  // ElMessage.success(`已清除${type}筛选`)
   loadTurnoverData()
 }
 
 // 清除所有人才流失筛选
 const clearAllTurnoverFilters = () => {
-  dashboardStore.clearTurnoverChartFilters()
-  ElMessage.success('已清除所有筛选')
+  // 使用 store 的清除所有筛选方法
+  dashboardStore.clearAllFilters()
+  // ElMessage.success('已清除所有筛选')
   loadTurnoverData()
 }
 
@@ -773,25 +849,25 @@ const handleTurnoverChartClick = (params) => {
       // 部门筛选 - 同时设置主筛选和图表筛选
       dashboardStore.setFilter('department', name)
       dashboardStore.setTurnoverChartFilter('department', name)
-      ElMessage.success(`已筛选部门：${name}`)
+      // ElMessage.success(`已筛选部门：${name}`)
       // 刷新人才流失数据
-      loadTurnoverData()
+      loadTurnoverData({ exclude: 'department' })
       break
 
     case 'resignationReason':
       // 离职原因筛选
       dashboardStore.setTurnoverChartFilter('reason', name)
-      ElMessage.success(`已筛选离职原因：${name}`)
+      // ElMessage.success(`已筛选离职原因：${name}`)
       // 刷新人才流失数据
-      loadTurnoverData()
+      loadTurnoverData({ exclude: 'reason' })
       break
 
     case 'resignationPosition':
       // 岗位筛选
       dashboardStore.setTurnoverChartFilter('position', name)
-      ElMessage.success(`已筛选离职岗位：${name}`)
+      // ElMessage.success(`已筛选离职岗位：${name}`)
       // 刷新人才流失数据
-      loadTurnoverData()
+      loadTurnoverData({ exclude: 'position' })
       break
 
     case 'resignationTenure':
@@ -800,9 +876,21 @@ const handleTurnoverChartClick = (params) => {
       dashboardStore.setTurnoverChartFilter('tenure', name)
       console.log('当前筛选状态:', dashboardStore.turnoverChartFilters)
       console.log('合并后的筛选参数:', turnoverFilters.value)
-      ElMessage.success(`已筛选在职时间：${name}`)
-      // 刷新人才流失数据
-      loadTurnoverData()
+      // ElMessage.success(`已筛选在职时间：${name}`)
+
+      // 联动筛选：更新图表本身只显示被点击的数据
+      const tenureData = turnoverChartData.value.tenureData
+      if (tenureData && tenureData.values && tenureData.labels) {
+        const clickedData = tenureData.values[params.data.dataIndex]
+        const clickedLabel = tenureData.labels[params.data.dataIndex]
+        turnoverChartData.value.tenureData = {
+          labels: [clickedLabel],
+          values: [clickedData]
+        }
+      }
+
+      // 刷新其他人才流失数据
+      loadTurnoverData({ exclude: 'tenure' })
       break
 
     default:
@@ -824,15 +912,15 @@ const refreshData = async () => {
 watch(
   () => dashboardStore.filters,
   async (newFilters, oldFilters) => {
-    // 避免初始化时触发
-    if (oldFilters) {
+    // 避免初始化时触发 - 只有在组件初始化完成且有旧值时才触发
+    if (isInitialized.value && oldFilters && !isSwitchingTab.value) {
       // 清除之前的定时器
-      if (debounceTimer) {
-        clearTimeout(debounceTimer)
+      if (debounceTimer.value) {
+        clearTimeout(debounceTimer.value)
       }
 
       // 设置防抖，100ms后执行，快速响应
-      debounceTimer = setTimeout(async () => {
+      debounceTimer.value = setTimeout(async () => {
         try {
           isRefreshing.value = true
           if (activeTab.value === 'overview') {
@@ -863,8 +951,13 @@ onMounted(async () => {
     } else if (activeTab.value === 'turnover') {
       await loadTurnoverData()
     }
+
+    // 标记初始化完成，允许watch监听器工作
+    isInitialized.value = true
   } catch (error) {
     ElMessage.error('初始化数据失败')
+    // 即使出错也要标记初始化完成
+    isInitialized.value = true
   }
 })
 </script>
@@ -883,9 +976,10 @@ onMounted(async () => {
 
 .dashboard-tabs {
   background: white;
-  border-radius: 12px;
-  padding: 8px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  border-radius: 16px;
+  padding: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .dashboard-tabs :deep(.el-tabs__header) {
@@ -895,19 +989,50 @@ onMounted(async () => {
 
 .dashboard-tabs :deep(.el-tabs__nav-wrap) {
   padding: 0;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.dashboard-tabs :deep(.el-tabs__nav) {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  align-items: center;
 }
 
 .dashboard-tabs :deep(.el-tabs__item) {
-  padding: 12px 24px;
-  font-weight: 500;
-  border-radius: 8px;
-  margin-right: 8px;
+  padding: 16px 36px;
+  font-weight: 600;
+  font-size: 15px;
+  border-radius: 12px;
+  margin-right: 0;
   transition: all 0.3s ease;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 160px;
+  height: 48px;
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  color: #666;
+  line-height: 1;
+}
+
+.dashboard-tabs :deep(.el-tabs__item:hover) {
+  background: rgba(64, 158, 255, 0.1);
+  color: #409eff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.2);
 }
 
 .dashboard-tabs :deep(.el-tabs__item.is-active) {
   background: linear-gradient(135deg, #409eff, #36cfc9);
   color: white;
+  border-color: transparent;
+  box-shadow: 0 4px 16px rgba(64, 158, 255, 0.3);
+  transform: translateY(-1px);
 }
 
 .dashboard-tabs :deep(.el-tabs__active-bar) {
@@ -918,8 +1043,11 @@ onMounted(async () => {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 16px;
-  padding: 8px 0; /* 减少上下内边距 */
+  margin-bottom: 20px;
+  padding: 20px 24px;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
 }
 
 .page-title-section {
@@ -928,34 +1056,45 @@ onMounted(async () => {
 
 .logo-title-container {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
+  align-items: center;
+  gap: 20px;
+}
+
+.logo-and-badge {
   position: relative;
+  display: flex;
+  align-items: center;
 }
 
 .page-logo {
-  width: 320px; /* 调大logo宽度 */
-  height: 64px; /* 调大logo高度 */
+  width: 280px;
+  height: 56px;
   object-fit: contain;
   object-position: left center;
-  border-radius: 6px;
-  margin-bottom: 4px; /* 减小底部间距 */
-  background: transparent; /* 确保背景透明 */
-  /* 尝试去除白色背景 */
+  border-radius: 8px;
+  background: transparent;
   mix-blend-mode: multiply;
   filter: contrast(1.2) brightness(1.1);
 }
 
+
+
+.title-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .page-title {
-  font-size: 28px; /* 稍微减小字体 */
+  font-size: 32px;
   font-weight: 700;
   color: #262626;
-  margin: 0 0 4px 0; /* 减小底部间距 */
+  margin: 0;
   background: linear-gradient(135deg, #1890ff, #722ed1);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .page-subtitle {
@@ -967,8 +1106,19 @@ onMounted(async () => {
 
 .page-actions {
   display: flex;
-  gap: 16px;
+  gap: 12px;
   align-items: center;
+}
+
+.action-btn {
+  border-radius: 8px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.action-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 /* 图表筛选状态样式 */
@@ -1059,38 +1209,14 @@ onMounted(async () => {
   margin-bottom: 40px;
 }
 
-/* 人才流失筛选显示 */
+/* 人才流失筛选显示 - 使用与总览页面相同的样式 */
 .turnover-filters-display {
-  background: #f8f9fa;
-  border: 1px solid #e9ecef;
-  border-radius: 8px;
-  padding: 12px 16px;
-  margin-bottom: 20px;
-}
-
-.filter-tags {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.filter-label {
-  font-size: 14px;
-  color: #666;
-  font-weight: 500;
-  margin-right: 8px;
-}
-
-.clear-all-btn {
-  color: #f56c6c;
-  font-size: 12px;
-  padding: 0;
-  margin-left: 8px;
-}
-
-.clear-all-btn:hover {
-  color: #f78989;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin: 16px 0;
+  color: white;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
 }
 
 .charts-main-row {
