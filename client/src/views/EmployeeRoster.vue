@@ -5,11 +5,15 @@
       <h1 class="page-title">员工花名册</h1>
       <div class="page-actions">
         <el-button type="primary">
-          <el-icon><Plus /></el-icon>
+          <el-icon>
+            <Plus />
+          </el-icon>
           新增员工
         </el-button>
         <el-button>
-          <el-icon><Download /></el-icon>
+          <el-icon>
+            <Download />
+          </el-icon>
           导出数据
         </el-button>
       </div>
@@ -19,42 +23,33 @@
     <div class="search-container">
       <div class="search-row">
         <div class="search-item">
-          <el-input
-            v-model="searchForm.name"
-            placeholder="请输入员工姓名"
-            clearable
-            @keyup.enter="handleSearch"
-          >
+          <el-input v-model="searchForm.name" placeholder="请输入员工姓名" clearable @keyup.enter="handleSearch">
             <template #prefix>
-              <el-icon><User /></el-icon>
+              <el-icon>
+                <User />
+              </el-icon>
             </template>
           </el-input>
         </div>
         <div class="search-item">
           <el-select v-model="searchForm.department" placeholder="选择部门" clearable>
-            <el-option
-              v-for="dept in departments"
-              :key="dept"
-              :label="dept"
-              :value="dept"
-            />
+            <el-option v-for="dept in departments" :key="dept" :label="dept" :value="dept" />
           </el-select>
         </div>
         <div class="search-item">
-          <el-input
-            v-model="searchForm.position"
-            placeholder="请输入岗位"
-            clearable
-            @keyup.enter="handleSearch"
-          />
+          <el-input v-model="searchForm.position" placeholder="请输入岗位" clearable @keyup.enter="handleSearch" />
         </div>
         <div class="search-item">
           <el-button type="primary" @click="handleSearch">
-            <el-icon><Search /></el-icon>
+            <el-icon>
+              <Search />
+            </el-icon>
             搜索
           </el-button>
           <el-button @click="handleReset">
-            <el-icon><Refresh /></el-icon>
+            <el-icon>
+              <Refresh />
+            </el-icon>
             重置
           </el-button>
         </div>
@@ -63,28 +58,22 @@
 
     <!-- 数据表格 -->
     <div class="data-table">
-      <el-table
-        v-loading="loading"
-        :data="tableData"
-        stripe
-        border
-        style="width: 100%"
-        :default-sort="{ prop: 'entry_date', order: 'descending' }"
-      >
-        <el-table-column prop="sequence_number" label="序列" width="80" />
+      <el-table v-loading="loading" :data="tableData" stripe border style="width: 100%"
+        :default-sort="{ prop: 'employeePositionInfoes[0].entryDate', order: 'descending' }">
+        <el-table-column prop="id" label="序列" width="80" fixed="left" />
         <el-table-column prop="name" label="姓名" width="100" fixed="left" />
-        <el-table-column prop="department" label="部门" width="120" />
-        <el-table-column prop="position" label="岗位" width="120" />
+        <el-table-column prop="employeePositionInfoes[0].department.department" label="部门" width="120" />
+        <el-table-column prop="employeePositionInfoes[0].position.position" label="岗位" width="120" />
         <el-table-column prop="gender" label="性别" width="80" />
         <el-table-column prop="age" label="年龄" width="80" />
-        <el-table-column prop="education_group" label="学历" width="100" />
-        <el-table-column prop="work_age_group" label="工龄" width="100" />
-        <el-table-column prop="entry_date" label="入职时间" width="120" sortable />
-        <el-table-column prop="organization_region" label="组织区域" width="100" />
+        <el-table-column prop="education.education" label="学历" width="100" />
+        <el-table-column prop="workAge" label="工龄(月)" width="100" />
+        <el-table-column prop="employeePositionInfoes[0].entryDate" label="入职时间" width="120" sortable />
+        <el-table-column prop="employeePositionInfoes[0].region.region" label="组织区域" width="100" />
         <el-table-column prop="region" label="区域" width="100" />
-        <el-table-column prop="employee_type" label="员工性质" width="100" />
-        <el-table-column prop="marital_status" label="婚姻状况" width="100" />
-        <el-table-column prop="personal_contact" label="联系方式" width="120" />
+        <el-table-column prop="employeePositionInfoes[0].employeeType" label="员工性质" width="100" />
+        <el-table-column prop="maritalStatus.maritalStatus" label="婚姻状况" width="100" />
+        <el-table-column prop="phoneNumber" label="联系方式" width="120" />
         <el-table-column label="操作" width="150" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" size="small" @click="handleEdit(row)">
@@ -99,15 +88,9 @@
 
       <!-- 分页 -->
       <div class="pagination-container">
-        <el-pagination
-          v-model:current-page="pagination.page"
-          v-model:page-size="pagination.pageSize"
-          :page-sizes="[10, 20, 50, 100]"
-          :total="pagination.total"
-          layout="total, sizes, prev, pager, next, jumper"
-          @size-change="handleSizeChange"
-          @current-change="handleCurrentChange"
-        />
+        <el-pagination v-model:current-page="pagination.page" v-model:page-size="pagination.pageSize"
+          :page-sizes="[10, 20, 50, 100]" :total="pagination.total" layout="total, sizes, prev, pager, next, jumper"
+          @size-change="handleSizeChange" @current-change="handleCurrentChange" />
       </div>
     </div>
   </div>
@@ -118,6 +101,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download, User, Search, Refresh } from '@element-plus/icons-vue'
 import { employeeApi } from '../api'
+import { calculateAge, calculateWorkAge } from '../utils'
 
 // 搜索表单
 const searchForm = reactive({
@@ -145,14 +129,25 @@ const fetchEmployeeData = async () => {
   loading.value = true
   try {
     const params = {
-      page: pagination.page,
+      pageIndex: pagination.page,
       pageSize: pagination.pageSize,
-      ...searchForm
     }
-    const response = await employeeApi.getRoster(params)
-    tableData.value = response.data
-    pagination.total = response.total
+    const response = await employeeApi.postRoster(params)
+
+    const items = response.rows.map((item) => {
+      const age = calculateAge(item.birthDate)
+      const workAge = calculateWorkAge(item.employeePositionInfoes[0].entryDate)
+      const tmp = {
+        age,
+        workAge,
+        ...item
+      }
+      return tmp
+    })
+    tableData.value = items
+    pagination.total = response.totalRowCount
   } catch (error) {
+    console.error('获取员工数据失败', error)
     ElMessage.error('获取员工数据失败')
   } finally {
     loading.value = false
@@ -284,23 +279,23 @@ onMounted(() => {
   .employee-roster {
     padding: 16px;
   }
-  
+
   .page-header {
     flex-direction: column;
     align-items: flex-start;
     gap: 16px;
   }
-  
+
   .search-row {
     flex-direction: column;
     align-items: stretch;
   }
-  
+
   .search-item {
     min-width: auto;
     width: 100%;
   }
-  
+
   .page-title {
     font-size: 20px;
   }
