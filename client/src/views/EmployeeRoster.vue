@@ -71,20 +71,20 @@
         style="width: 100%"
         :default-sort="{ prop: 'entry_date', order: 'descending' }"
       >
-        <el-table-column prop="sequence_number" label="序列" width="80" />
+        <el-table-column prop="id" label="序列" width="80" />
         <el-table-column prop="name" label="姓名" width="100" fixed="left" />
-        <el-table-column prop="department" label="部门" width="120" />
-        <el-table-column prop="position" label="岗位" width="120" />
+        <el-table-column prop="employeePositionInfoes[0].department.department" label="部门" width="120" />
+        <el-table-column prop="employeePositionInfoes[0].position.position" label="岗位" width="120" />
         <el-table-column prop="gender" label="性别" width="80" />
         <el-table-column prop="age" label="年龄" width="80" />
-        <el-table-column prop="education_group" label="学历" width="100" />
+        <el-table-column prop="education.education" label="学历" width="100" />
         <el-table-column prop="work_age_group" label="工龄" width="100" />
-        <el-table-column prop="entry_date" label="入职时间" width="120" sortable />
-        <el-table-column prop="organization_region" label="组织区域" width="100" />
+        <el-table-column prop="employeePositionInfoes[0].entryDate" label="入职时间" width="120" sortable />
+        <el-table-column prop="employeePositionInfoes[0].region.region" label="组织区域" width="100" />
         <el-table-column prop="region" label="区域" width="100" />
-        <el-table-column prop="employee_type" label="员工性质" width="100" />
-        <el-table-column prop="marital_status" label="婚姻状况" width="100" />
-        <el-table-column prop="personal_contact" label="联系方式" width="120" />
+        <el-table-column prop="employeePositionInfoes[0].employeeType" label="员工性质" width="100" />
+        <el-table-column prop="maritalStatus.maritalStatus" label="婚姻状况" width="100" />
+        <el-table-column prop="phoneNumber" label="联系方式" width="120" />
         <el-table-column label="操作" width="150" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" size="small" @click="handleEdit(row)">
@@ -145,13 +145,14 @@ const fetchEmployeeData = async () => {
   loading.value = true
   try {
     const params = {
-      page: pagination.page,
+      pageIndex: pagination.page,
       pageSize: pagination.pageSize,
-      ...searchForm
     }
-    const response = await employeeApi.getRoster(params)
-    tableData.value = response.data
-    pagination.total = response.total
+    const response = await employeeApi.postRoster(params)
+    console.log(response)
+    // const response = await employeeApi.getRoster(params)
+    tableData.value = response.rows
+    pagination.total = response.totalRowCount
   } catch (error) {
     ElMessage.error('获取员工数据失败')
   } finally {
