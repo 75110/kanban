@@ -30,7 +30,7 @@
       <v-chart
         ref="chartRef"
         :option="chartOption"
-        :update-options="{ notMerge: false, replaceMerge: ['xAxis','series','legend'] }"
+        :update-options="{ notMerge: true, lazyUpdate: false }"
         :init-options="{ devicePixelRatio: 1, renderer: 'canvas' }"
         autoresize
         @click="handleChartClick"
@@ -52,7 +52,7 @@
 </template>
 
 <script setup>
-import { computed, watch, ref, onMounted, onBeforeUnmount } from 'vue'
+import { computed, watch, ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { use } from 'echarts/core'
 import { CanvasRenderer, SVGRenderer } from 'echarts/renderers'
 import { PieChart, BarChart, HeatmapChart } from 'echarts/charts'
@@ -155,6 +155,27 @@ let overlayTimer = null
 // 图表引用
 const chartRef = ref(null)
 
+// 监听数据变化，强制更新图表
+watch(
+  () => props.data,
+  async (newData, oldData) => {
+    if (chartRef.value && newData && oldData) {
+      // 检查数据是否真的发生了变化
+      const dataChanged =
+        JSON.stringify(newData.labels) !== JSON.stringify(oldData.labels) ||
+        JSON.stringify(newData.values) !== JSON.stringify(oldData.values)
+
+      if (dataChanged) {
+        console.log(`${props.title} - 强制更新图表`)
+        await nextTick()
+        // 强制重新设置选项
+        chartRef.value.setOption(chartOption.value, true)
+      }
+    }
+  },
+  { deep: true }
+)
+
 watch(() => props.loading, (val) => {
   if (val) {
     // 200ms 后再显示遮罩，短暂加载不显示
@@ -207,6 +228,13 @@ const chartOption = computed(() => {
   if (isEmpty.value) return {}
 
   const { labels, values } = props.data
+
+  // 添加调试信息
+  console.log(`${props.title} - 图表数据更新:`, {
+    labels: labels?.length,
+    values: values?.length,
+    total: values?.reduce((sum, val) => sum + val, 0)
+  })
 
   if (props.type === 'pie') {
     return {

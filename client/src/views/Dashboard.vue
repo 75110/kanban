@@ -342,6 +342,9 @@ const isRefreshing = ref(false)
 // 当前激活的标签页
 const activeTab = ref('overview')
 
+// 防抖定时器
+const debounceTimer = ref(null)
+
 // 人才流失分析数据
 const turnoverStats = ref({
   totalResigned: 0,
@@ -512,45 +515,55 @@ const handleTabChange = (tab) => {
 
 // 加载人才流失分析数据 - 优化为分批加载以减少数据库压力
 const loadTurnoverData = async () => {
-  const loadingMessage = ElMessage({
-    message: '正在加载人才流失数据...',
-    type: 'info',
-    duration: 0, // 不自动关闭
-    showClose: false
-  })
-
-  try {
-    console.log('开始加载人才流失数据...')
-
-    // 第一批：基础统计数据
-    loadingMessage.message = '正在加载统计数据...'
-    await Promise.all([
-      fetchTurnoverStats(),
-      fetchTurnoverDepartmentData()
-    ])
-
-    // 第二批：详细分析数据
-    loadingMessage.message = '正在加载分析数据...'
-    await Promise.all([
-      fetchTurnoverReasonData(),
-      fetchTurnoverDepartmentStats()
-    ])
-
-    // 第三批：其他数据
-    loadingMessage.message = '正在完成数据加载...'
-    await Promise.all([
-      fetchTurnoverPositionData(),
-      fetchTurnoverTenureData()
-    ])
-
-    console.log('人才流失数据加载完成')
-    loadingMessage.close()
-    ElMessage.success('数据加载完成')
-  } catch (error) {
-    console.error('加载人才流失数据失败:', error)
-    loadingMessage.close()
-    ElMessage.error('加载人才流失数据失败')
+  // 清除之前的防抖定时器
+  if (debounceTimer.value) {
+    clearTimeout(debounceTimer.value)
   }
+
+  // 防抖：延迟500ms执行，避免频繁请求
+  return new Promise((resolve) => {
+    debounceTimer.value = setTimeout(async () => {
+      const loadingMessage = ElMessage({
+        message: '正在加载人才流失数据...',
+        type: 'info',
+        duration: 0, // 不自动关闭
+        showClose: false
+      })
+
+      try {
+        console.log('开始加载人才流失数据...')
+
+        // 串行加载以减少数据库压力
+        loadingMessage.message = '正在加载统计数据...'
+        await fetchTurnoverStats()
+
+        loadingMessage.message = '正在加载部门数据...'
+        await fetchTurnoverDepartmentData()
+
+        loadingMessage.message = '正在加载原因分析...'
+        await fetchTurnoverReasonData()
+
+        loadingMessage.message = '正在加载部门统计...'
+        await fetchTurnoverDepartmentStats()
+
+        loadingMessage.message = '正在加载岗位数据...'
+        await fetchTurnoverPositionData()
+
+        loadingMessage.message = '正在加载在职时间数据...'
+        await fetchTurnoverTenureData()
+
+        console.log('人才流失数据加载完成')
+        loadingMessage.close()
+        ElMessage.success('数据加载完成')
+        resolve()
+      } catch (error) {
+        console.error('加载人才流失数据失败:', error)
+        loadingMessage.close()
+        ElMessage.error('加载人才流失数据失败')
+        resolve()
+      }
+    }, 500) // 500ms防抖延迟
+  })
 }
 
 // 获取人才流失统计数据
@@ -602,7 +615,23 @@ const fetchTurnoverReasonData = async () => {
     console.log('fetchTurnoverReasonData - 返回数据:', data)
     console.log('fetchTurnoverReasonData - 数据总数:', data?.values?.reduce((sum, val) => sum + val, 0))
     if (data) {
+      console.log('更新前的reasonData:', {
+        labels: turnoverChartData.value.reasonData.labels?.slice(0, 3),
+        values: turnoverChartData.value.reasonData.values?.slice(0, 3),
+        total: turnoverChartData.value.reasonData.values?.reduce((sum, val) => sum + val, 0)
+      })
       turnoverChartData.value.reasonData = data
+      console.log('更新后的reasonData:', {
+        labels: data.labels?.slice(0, 3),
+        values: data.values?.slice(0, 3),
+        total: data.values?.reduce((sum, val) => sum + val, 0)
+      })
+
+      // 显示数据变化百分比
+      const oldTotal = turnoverChartData.value.reasonData.values?.reduce((sum, val) => sum + val, 0) || 0
+      const newTotal = data.values?.reduce((sum, val) => sum + val, 0) || 0
+      const changePercent = oldTotal > 0 ? ((newTotal - oldTotal) / oldTotal * 100).toFixed(1) : 0
+      console.log(`🔍 离职原因数据变化: ${oldTotal} → ${newTotal} (${changePercent}%)`)
     }
   } catch (error) {
     console.error('获取离职原因分析失败:', error)
@@ -656,9 +685,13 @@ const fetchTurnoverTenureData = async () => {
     const filtersWithoutTenure = { ...turnoverFilters.value }
     delete filtersWithoutTenure.tenure
 
+    console.log('fetchTurnoverTenureData - 筛选参数:', filtersWithoutTenure)
     const data = await dashboardApi.getTurnoverTenureDistribution(filtersWithoutTenure)
+    console.log('fetchTurnoverTenureData - 返回数据:', data)
     if (data) {
+      console.log('更新前的tenureData:', turnoverChartData.value.tenureData)
       turnoverChartData.value.tenureData = data
+      console.log('更新后的tenureData:', turnoverChartData.value.tenureData)
     }
   } catch (error) {
     console.error('获取离职人员在职时间分布失败:', error)
@@ -786,9 +819,6 @@ const refreshData = async () => {
     ElMessage.error('数据刷新失败')
   }
 }
-
-// 防抖定时器
-let debounceTimer = null
 
 // 监听筛选条件变化，自动刷新数据
 watch(
