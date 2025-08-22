@@ -60,7 +60,7 @@
     <div class="data-table">
       <el-table v-loading="loading" :data="tableData" stripe border style="width: 100%"
         :default-sort="{ prop: 'entry_date', order: 'descending' }">
-        <el-table-column prop="id" label="序列" width="80" />
+        <el-table-column prop="id" label="序列" width="80" fixed="left" />
         <el-table-column prop="name" label="姓名" width="100" fixed="left" />
         <el-table-column prop="employeePositionInfoes[0].department.department" label="部门" width="120" />
         <el-table-column prop="employeePositionInfoes[0].position.position" label="岗位" width="120" />
