@@ -3,7 +3,7 @@ import axios from 'axios'
 // 创建axios实例
 const api = axios.create({
   baseURL: '/api',
-  timeout: 30000, // 增加到30秒，因为数据加载慢
+  timeout: 15000, // 减少到15秒，优化用户体验
   headers: {
     'Content-Type': 'application/json'
   }
@@ -50,30 +50,65 @@ export const dashboardApi = {
   getStats(params) {
     return api.get('/dashboard/stats', { params })
   },
-  
+
   // 获取工龄分布
   getWorkAgeDistribution(params) {
     return api.get('/dashboard/work-age-distribution', { params })
   },
-  
+
   // 获取学历分布
   getEducationDistribution(params) {
     return api.get('/dashboard/education-distribution', { params })
   },
-  
+
   // 获取部门统计
   getDepartmentStats(params) {
     return api.get('/dashboard/department-stats', { params })
   },
-  
+
   // 获取筛选选项
   getFilterOptions() {
     return api.get('/dashboard/filter-options')
+  },
+
+  // 人才流失分析API
+  // 获取人才流失统计数据
+  getTurnoverStats(params) {
+    return api.get('/dashboard/turnover-stats', { params })
+  },
+
+  // 获取离职部门分布
+  getTurnoverDepartmentDistribution(params) {
+    return api.get('/dashboard/turnover-department-distribution', { params })
+  },
+
+  // 获取离职原因分析
+  getTurnoverReasonAnalysis(params) {
+    return api.get('/dashboard/turnover-reason-analysis', { params })
+  },
+
+  // 获取离职人员部门统计
+  getTurnoverDepartmentStats(params) {
+    return api.get('/dashboard/turnover-department-stats', { params })
+  },
+
+  // 获取离职岗位分布
+  getTurnoverPositionDistribution(params) {
+    return api.get('/dashboard/turnover-position-distribution', { params })
+  },
+
+  // 获取离职人员在职时间分布
+  getTurnoverTenureDistribution(params) {
+    return api.get('/dashboard/turnover-tenure-distribution', { params })
   }
 }
 
 // 员工API
 export const employeeApi = {
+
+  postRoster(params) {
+    return api.post('/employeeRoster', { data: params })
+  },
   // 获取员工花名册
   getRoster(params) {
     return api.get('/employee/roster', { params })

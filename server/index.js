@@ -21,13 +21,17 @@ const dbConfig = {
   password: process.env.DB_PASSWORD || 'Jinlian123..',
   database: process.env.DB_NAME || 'hr_dashboard',
   waitForConnections: true,
-  connectionLimit: 5, // 减少连接数
+  connectionLimit: 20, // 增加连接数以提高并发性能
   queueLimit: 0,
-  acquireTimeout: 60000, // 60秒超时
-  timeout: 60000, // 查询超时
+  acquireTimeout: 30000, // 30秒超时
+  timeout: 30000, // 查询超时
   reconnect: true,
   idleTimeout: 300000, // 5分钟空闲超时
-  maxIdle: 5 // 最大空闲连接数
+  maxIdle: 10, // 增加最大空闲连接数
+  // 添加性能优化配置
+  charset: 'utf8mb4',
+  multipleStatements: false,
+  namedPlaceholders: false
 };
 
 // 创建数据库连接池

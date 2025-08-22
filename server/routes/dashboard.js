@@ -562,4 +562,518 @@ function getWorkAgeMonthsRange(workAgeDisplay) {
   }
 }
 
+/**
+ * 获取人才流失统计数据
+ */
+router.get('/turnover-stats', async (req, res) => {
+  try {
+    const { organizationRegion, region, department, year, month } = req.query;
+    const pool = req.pool;
+
+    // 构建查询条件
+    let whereConditions = [];
+    let params = [];
+
+    if (region) {
+      whereConditions.push('region = ?');
+      params.push(region);
+    }
+
+    if (department) {
+      whereConditions.push('department = ?');
+      params.push(department);
+    }
+
+    // 日期范围条件
+    const dateRange = getDateRange(year, month);
+    if (dateRange) {
+      whereConditions.push('resignation_date BETWEEN ? AND ?');
+      params.push(dateRange.start, dateRange.end);
+    }
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+    const connection = await pool.getConnection();
+
+    try {
+      // 获取总离职人数
+      const [totalResignedResult] = await connection.execute(
+        `SELECT COUNT(*) as count FROM resignation_monitoring ${whereClause}`,
+        params
+      );
+
+      // 获取总员工数（在职+离职）
+      const [totalEmployeesResult] = await connection.execute(
+        `SELECT
+          (SELECT COUNT(*) FROM employee_roster) +
+          (SELECT COUNT(*) FROM resignation_monitoring) as total`
+      );
+
+      const totalResigned = totalResignedResult[0].count;
+      const totalEmployees = totalEmployeesResult[0].total;
+      const turnoverRate = totalEmployees > 0 ? (totalResigned / totalEmployees * 100) : 0;
+
+      // 获取对比期数据用于计算同环比
+      let previousStats = null;
+      let lastYearStats = null;
+
+      if (year && month) {
+        // 环比：上个月数据
+        const prevDateRange = getPreviousDateRange(parseInt(year), parseInt(month));
+        if (prevDateRange) {
+          const prevParams = [...params.slice(0, -2), prevDateRange.start, prevDateRange.end];
+          const [prevResult] = await connection.execute(
+            `SELECT COUNT(*) as count FROM resignation_monitoring ${whereClause}`,
+            prevParams
+          );
+          previousStats = { totalResigned: prevResult[0].count };
+        }
+
+        // 同比：去年同月数据
+        const lastYearDateRange = getLastYearDateRange(parseInt(year), parseInt(month));
+        if (lastYearDateRange) {
+          const lastYearParams = [...params.slice(0, -2), lastYearDateRange.start, lastYearDateRange.end];
+          const [lastYearResult] = await connection.execute(
+            `SELECT COUNT(*) as count FROM resignation_monitoring ${whereClause}`,
+            lastYearParams
+          );
+          lastYearStats = { totalResigned: lastYearResult[0].count };
+        }
+      }
+
+      const result = {
+        totalResigned,
+        turnoverRate: parseFloat(turnoverRate.toFixed(2)),
+        growth: {
+          monthOverMonth: previousStats ? {
+            totalResigned: calculateMonthOverMonth(totalResigned, previousStats.totalResigned),
+            turnoverRate: calculateMonthOverMonth(turnoverRate, previousStats.totalResigned / totalEmployees * 100)
+          } : null,
+          yearOverYear: lastYearStats ? {
+            totalResigned: calculateYearOverYear(totalResigned, lastYearStats.totalResigned),
+            turnoverRate: calculateYearOverYear(turnoverRate, lastYearStats.totalResigned / totalEmployees * 100)
+          } : null
+        }
+      };
+
+      res.json(result);
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('获取人才流失统计数据失败:', error);
+    res.status(500).json({ error: '获取人才流失统计数据失败' });
+  }
+});
+
+/**
+ * 获取离职部门分布（前5名）
+ */
+router.get('/turnover-department-distribution', async (req, res) => {
+  try {
+    const { organizationRegion, region, department, year, month, reason, position, tenure } = req.query;
+    const pool = req.pool;
+
+    let whereConditions = [];
+    let params = [];
+
+    if (region) {
+      whereConditions.push('region = ?');
+      params.push(region);
+    }
+
+    if (department) {
+      whereConditions.push('department = ?');
+      params.push(department);
+    }
+
+    if (reason) {
+      whereConditions.push('resignation_reason = ?');
+      params.push(reason);
+    }
+
+    if (position) {
+      whereConditions.push('position = ?');
+      params.push(position);
+    }
+
+    // 在职时间筛选
+    if (tenure) {
+      switch (tenure) {
+        case '1-3月':
+          whereConditions.push('DATEDIFF(resignation_date, entry_date) <= 90');
+          break;
+        case '3-6月':
+          whereConditions.push('DATEDIFF(resignation_date, entry_date) > 90 AND DATEDIFF(resignation_date, entry_date) <= 180');
+          break;
+        case '6-12月':
+          whereConditions.push('DATEDIFF(resignation_date, entry_date) > 180 AND DATEDIFF(resignation_date, entry_date) <= 365');
+          break;
+        case '1年以上':
+          whereConditions.push('DATEDIFF(resignation_date, entry_date) > 365');
+          break;
+      }
+    }
+
+    const dateRange = getDateRange(year, month);
+    if (dateRange) {
+      whereConditions.push('resignation_date BETWEEN ? AND ?');
+      params.push(dateRange.start, dateRange.end);
+    }
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+    const connection = await pool.getConnection();
+
+    try {
+      const [rows] = await connection.execute(
+        `SELECT department, COUNT(*) as count
+         FROM resignation_monitoring ${whereClause}
+         GROUP BY department
+         ORDER BY count DESC
+         LIMIT 5`,
+        params
+      );
+
+      const result = {
+        labels: rows.map(row => row.department),
+        values: rows.map(row => row.count)
+      };
+
+      res.json(result);
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('获取离职部门分布失败:', error);
+    res.status(500).json({ error: '获取离职部门分布失败' });
+  }
+});
+
+/**
+ * 获取离职原因分析
+ */
+router.get('/turnover-reason-analysis', async (req, res) => {
+  try {
+    const { organizationRegion, region, department, year, month, position, tenure } = req.query;
+    const pool = req.pool;
+
+    let whereConditions = [];
+    let params = [];
+
+    if (region) {
+      whereConditions.push('region = ?');
+      params.push(region);
+    }
+
+    if (department) {
+      whereConditions.push('department = ?');
+      params.push(department);
+    }
+
+    if (position) {
+      whereConditions.push('position = ?');
+      params.push(position);
+    }
+
+    // 在职时间筛选
+    if (tenure) {
+      switch (tenure) {
+        case '1-3月':
+          whereConditions.push('DATEDIFF(resignation_date, entry_date) <= 90');
+          break;
+        case '3-6月':
+          whereConditions.push('DATEDIFF(resignation_date, entry_date) > 90 AND DATEDIFF(resignation_date, entry_date) <= 180');
+          break;
+        case '6-12月':
+          whereConditions.push('DATEDIFF(resignation_date, entry_date) > 180 AND DATEDIFF(resignation_date, entry_date) <= 365');
+          break;
+        case '1年以上':
+          whereConditions.push('DATEDIFF(resignation_date, entry_date) > 365');
+          break;
+      }
+    }
+
+    const dateRange = getDateRange(year, month);
+    if (dateRange) {
+      whereConditions.push('resignation_date BETWEEN ? AND ?');
+      params.push(dateRange.start, dateRange.end);
+    }
+
+    // 添加离职原因不为空的条件
+    whereConditions.push('resignation_reason IS NOT NULL AND resignation_reason != \'\'');
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+    const connection = await pool.getConnection();
+
+    try {
+      const [rows] = await connection.execute(
+        `SELECT resignation_reason, COUNT(*) as count
+         FROM resignation_monitoring ${whereClause}
+         GROUP BY resignation_reason
+         ORDER BY count DESC`,
+        params
+      );
+
+      const result = {
+        labels: rows.map(row => row.resignation_reason),
+        values: rows.map(row => row.count)
+      };
+
+      res.json(result);
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('获取离职原因分析失败:', error);
+    res.status(500).json({ error: '获取离职原因分析失败' });
+  }
+});
+
+/**
+ * 获取离职人员部门统计
+ */
+router.get('/turnover-department-stats', async (req, res) => {
+  try {
+    const { organizationRegion, region, department, year, month, reason, position, tenure } = req.query;
+    const pool = req.pool;
+
+    let whereConditions = [];
+    let params = [];
+
+    if (region) {
+      whereConditions.push('region = ?');
+      params.push(region);
+    }
+
+    if (department) {
+      whereConditions.push('department = ?');
+      params.push(department);
+    }
+
+    if (reason) {
+      whereConditions.push('resignation_reason = ?');
+      params.push(reason);
+    }
+
+    if (position) {
+      whereConditions.push('position = ?');
+      params.push(position);
+    }
+
+    // 在职时间筛选
+    if (tenure) {
+      switch (tenure) {
+        case '1-3月':
+          whereConditions.push('DATEDIFF(resignation_date, entry_date) <= 90');
+          break;
+        case '3-6月':
+          whereConditions.push('DATEDIFF(resignation_date, entry_date) > 90 AND DATEDIFF(resignation_date, entry_date) <= 180');
+          break;
+        case '6-12月':
+          whereConditions.push('DATEDIFF(resignation_date, entry_date) > 180 AND DATEDIFF(resignation_date, entry_date) <= 365');
+          break;
+        case '1年以上':
+          whereConditions.push('DATEDIFF(resignation_date, entry_date) > 365');
+          break;
+      }
+    }
+
+    const dateRange = getDateRange(year, month);
+    if (dateRange) {
+      whereConditions.push('resignation_date BETWEEN ? AND ?');
+      params.push(dateRange.start, dateRange.end);
+    }
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+    const connection = await pool.getConnection();
+
+    try {
+      const [rows] = await connection.execute(
+        `SELECT department, COUNT(*) as count
+         FROM resignation_monitoring ${whereClause}
+         GROUP BY department
+         ORDER BY count DESC`,
+        params
+      );
+
+      const result = {
+        labels: rows.map(row => row.department),
+        values: rows.map(row => row.count)
+      };
+
+      res.json(result);
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('获取离职人员部门统计失败:', error);
+    res.status(500).json({ error: '获取离职人员部门统计失败' });
+  }
+});
+
+/**
+ * 获取离职岗位分布
+ */
+router.get('/turnover-position-distribution', async (req, res) => {
+  try {
+    const { organizationRegion, region, department, year, month, reason, tenure } = req.query;
+    const pool = req.pool;
+
+    let whereConditions = [];
+    let params = [];
+
+    if (region) {
+      whereConditions.push('region = ?');
+      params.push(region);
+    }
+
+    if (department) {
+      whereConditions.push('department = ?');
+      params.push(department);
+    }
+
+    if (reason) {
+      whereConditions.push('resignation_reason = ?');
+      params.push(reason);
+    }
+
+    // 在职时间筛选
+    if (tenure) {
+      switch (tenure) {
+        case '1-3月':
+          whereConditions.push('DATEDIFF(resignation_date, entry_date) <= 90');
+          break;
+        case '3-6月':
+          whereConditions.push('DATEDIFF(resignation_date, entry_date) > 90 AND DATEDIFF(resignation_date, entry_date) <= 180');
+          break;
+        case '6-12月':
+          whereConditions.push('DATEDIFF(resignation_date, entry_date) > 180 AND DATEDIFF(resignation_date, entry_date) <= 365');
+          break;
+        case '1年以上':
+          whereConditions.push('DATEDIFF(resignation_date, entry_date) > 365');
+          break;
+      }
+    }
+
+    const dateRange = getDateRange(year, month);
+    if (dateRange) {
+      whereConditions.push('resignation_date BETWEEN ? AND ?');
+      params.push(dateRange.start, dateRange.end);
+    }
+
+    // 添加岗位不为空的条件
+    whereConditions.push('position IS NOT NULL AND position != \'\'');
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+    const connection = await pool.getConnection();
+
+    try {
+      const [rows] = await connection.execute(
+        `SELECT position, COUNT(*) as count
+         FROM resignation_monitoring ${whereClause}
+         GROUP BY position
+         ORDER BY count DESC`,
+        params
+      );
+
+      const result = {
+        labels: rows.map(row => row.position),
+        values: rows.map(row => row.count)
+      };
+
+      res.json(result);
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('获取离职岗位分布失败:', error);
+    res.status(500).json({ error: '获取离职岗位分布失败' });
+  }
+});
+
+/**
+ * 获取离职人员在职时间分布
+ */
+router.get('/turnover-tenure-distribution', async (req, res) => {
+  try {
+    const { organizationRegion, region, department, year, month, reason, position } = req.query;
+    const pool = req.pool;
+
+    let whereConditions = [];
+    let params = [];
+
+    if (region) {
+      whereConditions.push('region = ?');
+      params.push(region);
+    }
+
+    if (department) {
+      whereConditions.push('department = ?');
+      params.push(department);
+    }
+
+    if (reason) {
+      whereConditions.push('resignation_reason = ?');
+      params.push(reason);
+    }
+
+    if (position) {
+      whereConditions.push('position = ?');
+      params.push(position);
+    }
+
+    const dateRange = getDateRange(year, month);
+    if (dateRange) {
+      whereConditions.push('resignation_date BETWEEN ? AND ?');
+      params.push(dateRange.start, dateRange.end);
+    }
+
+    // 添加必要字段不为空的条件
+    whereConditions.push('entry_date IS NOT NULL AND resignation_date IS NOT NULL');
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+    const connection = await pool.getConnection();
+
+    try {
+      const [rows] = await connection.execute(
+        `SELECT
+          CASE
+            WHEN DATEDIFF(resignation_date, entry_date) <= 90 THEN '1-3月'
+            WHEN DATEDIFF(resignation_date, entry_date) <= 180 THEN '3-6月'
+            WHEN DATEDIFF(resignation_date, entry_date) <= 365 THEN '6-12月'
+            ELSE '1年以上'
+          END as tenure_range,
+          COUNT(*) as count
+         FROM resignation_monitoring ${whereClause}
+         GROUP BY tenure_range
+         ORDER BY
+           CASE tenure_range
+             WHEN '1-3月' THEN 1
+             WHEN '3-6月' THEN 2
+             WHEN '6-12月' THEN 3
+             WHEN '1年以上' THEN 4
+           END`,
+        params
+      );
+
+      const result = {
+        labels: rows.map(row => row.tenure_range),
+        values: rows.map(row => row.count)
+      };
+
+      res.json(result);
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('获取离职人员在职时间分布失败:', error);
+    res.status(500).json({ error: '获取离职人员在职时间分布失败' });
+  }
+});
+
 module.exports = router;

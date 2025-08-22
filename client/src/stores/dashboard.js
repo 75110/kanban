@@ -18,6 +18,14 @@ export const useDashboardStore = defineStore('dashboard', {
       education: '', // 学历筛选
       department: '' // 部门筛选（来自图表点击）
     },
+
+    // 人才流失分析图表筛选
+    turnoverChartFilters: {
+      department: '', // 离职部门筛选
+      reason: '', // 离职原因筛选
+      position: '', // 离职岗位筛选
+      tenure: '' // 在职时间筛选
+    },
     
     // 筛选选项
     filterOptions: {
@@ -240,6 +248,35 @@ export const useDashboardStore = defineStore('dashboard', {
         department: ''
       }
       this.refreshAll()
+    },
+
+    // 设置人才流失分析图表筛选
+    setTurnoverChartFilter(type, value) {
+      // 清除其他人才流失图表筛选，只保留当前点击的
+      this.turnoverChartFilters = {
+        department: '',
+        reason: '',
+        position: '',
+        tenure: ''
+      }
+
+      // 设置当前筛选
+      if (this.turnoverChartFilters.hasOwnProperty(type)) {
+        this.turnoverChartFilters[type] = value
+      }
+
+      // 这里可以触发人才流失数据的刷新
+      // 由于人才流失数据在Dashboard组件中管理，这里只设置筛选状态
+    },
+
+    // 清除人才流失分析图表筛选
+    clearTurnoverChartFilters() {
+      this.turnoverChartFilters = {
+        department: '',
+        reason: '',
+        position: '',
+        tenure: ''
+      }
     }
   }
 })

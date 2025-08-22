@@ -55,13 +55,14 @@
 import { computed, watch, ref, onMounted, onBeforeUnmount } from 'vue'
 import { use } from 'echarts/core'
 import { CanvasRenderer, SVGRenderer } from 'echarts/renderers'
-import { PieChart, BarChart } from 'echarts/charts'
+import { PieChart, BarChart, HeatmapChart } from 'echarts/charts'
 import {
   TitleComponent,
   TooltipComponent,
   LegendComponent,
   GridComponent,
-  DataZoomComponent
+  DataZoomComponent,
+  VisualMapComponent
 } from 'echarts/components'
 import VChart, { THEME_KEY } from 'vue-echarts'
 import { Loading, DocumentRemove, Download, FullScreen } from '@element-plus/icons-vue'
@@ -72,11 +73,13 @@ use([
   CanvasRenderer,
   PieChart,
   BarChart,
+  HeatmapChart,
   TitleComponent,
   TooltipComponent,
   LegendComponent,
   GridComponent,
-  DataZoomComponent
+  DataZoomComponent,
+  VisualMapComponent
 ])
 
 const props = defineProps({
@@ -87,7 +90,7 @@ const props = defineProps({
   type: {
     type: String,
     default: 'pie',
-    validator: (value) => ['pie', 'bar', 'bubble'].includes(value)
+    validator: (value) => ['pie', 'bar', 'bubble', 'heatmap'].includes(value)
   },
   data: {
     type: Object,
@@ -104,8 +107,8 @@ const props = defineProps({
   },
   chartType: {
     type: String,
-    default: '', // 'workAge', 'education', 'department'
-    validator: (value) => ['', 'workAge', 'education', 'department'].includes(value)
+    default: '', // 'workAge', 'education', 'department', 'resignationDepartment', 'resignationReason', 'resignationDepartmentStats', 'resignationPosition', 'resignationTenure'
+    validator: (value) => ['', 'workAge', 'education', 'department', 'resignationDepartment', 'resignationReason', 'resignationDepartmentStats', 'resignationPosition', 'resignationTenure'].includes(value)
   }
 })
 
@@ -357,6 +360,64 @@ const chartOption = computed(() => {
           animationEasing: 'elasticOut'
         }
       ]
+    }
+  } else if (props.type === 'heatmap') {
+    // 热图配置 - 用于离职原因分析
+    const heatmapData = labels.map((label, index) => [0, index, values[index]])
+
+    return {
+      animation: true,
+      animationDuration: 800,
+      tooltip: {
+        position: 'top',
+        formatter: function(params) {
+          return `${labels[params.data[1]]}: ${params.data[2]}人`
+        }
+      },
+      grid: {
+        height: '50%',
+        top: '10%'
+      },
+      xAxis: {
+        type: 'category',
+        data: ['离职原因'],
+        splitArea: {
+          show: true
+        }
+      },
+      yAxis: {
+        type: 'category',
+        data: labels,
+        splitArea: {
+          show: true
+        }
+      },
+      visualMap: {
+        min: 0,
+        max: Math.max(...values),
+        calculable: true,
+        orient: 'horizontal',
+        left: 'center',
+        bottom: '15%',
+        inRange: {
+          color: ['#e6f7ff', '#bae7ff', '#91d5ff', '#69c0ff', '#40a9ff', '#1890ff', '#096dd9']
+        }
+      },
+      series: [{
+        name: '离职人数',
+        type: 'heatmap',
+        data: heatmapData,
+        label: {
+          show: true,
+          formatter: '{c}人'
+        },
+        emphasis: {
+          itemStyle: {
+            shadowBlur: 10,
+            shadowColor: 'rgba(0, 0, 0, 0.5)'
+          }
+        }
+      }]
     }
   } else {
     return {

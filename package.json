@@ -11,10 +11,18 @@
     "client:build": "cd client && npm run build",
     "install:all": "npm install && cd server && npm install && cd ../client && npm install"
   },
-  "keywords": ["hr", "dashboard", "vue", "nodejs"],
+  "keywords": [
+    "hr",
+    "dashboard",
+    "vue",
+    "nodejs"
+  ],
   "author": "",
   "license": "MIT",
   "devDependencies": {
     "concurrently": "^8.2.2"
+  },
+  "dependencies": {
+    "mysql2": "^3.14.3"
   }
 }

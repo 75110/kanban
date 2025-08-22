@@ -149,7 +149,6 @@ const fetchEmployeeData = async () => {
       pageSize: pagination.pageSize,
       ...searchForm
     }
-    
     const response = await employeeApi.getRoster(params)
     tableData.value = response.data
     pagination.total = response.total

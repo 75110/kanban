@@ -101,12 +101,14 @@ CREATE TABLE IF NOT EXISTS resignation_monitoring (
   resignation_type VARCHAR(50) COMMENT '离职类型',
   resignation_reason TEXT COMMENT '离职原因',
   resignation_remarks TEXT COMMENT '备注',
+  organization_region VARCHAR(50) COMMENT '组织区域',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_region (region),
   INDEX idx_department (department),
   INDEX idx_resignation_date (resignation_date),
-  INDEX idx_name (name)
+  INDEX idx_name (name),
+  INDEX idx_organization_region (organization_region)
 ) COMMENT='离职监控表';
 
 -- 人员异动明细表
