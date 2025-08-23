@@ -109,12 +109,19 @@ export const dashboardApi = {
 
 // 员工API
 export const employeeApi = {
+  // 新增员工
   postRoster(params) {
-    return api.post("/employeeRoster", { data: params });
+    return api.post("/employee/roster", params);
   },
+
   // 获取员工花名册
   getRoster(params) {
     return api.get("/employee/roster", { params });
+  },
+
+  // 导出员工花名册
+  exportRoster(params) {
+    return api.get("/employee/roster/export", { params });
   },
 
   // 获取离职监控数据

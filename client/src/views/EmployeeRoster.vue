@@ -4,13 +4,31 @@
     <div class="page-header">
       <h1 class="page-title">员工花名册</h1>
       <div class="page-actions">
-        <el-button type="primary">
+        <el-button type="primary" @click="handleAddEmployee">
           <el-icon>
             <Plus />
           </el-icon>
           新增员工
         </el-button>
-        <el-button>
+        <el-upload
+          ref="uploadRef"
+          :action="uploadUrl"
+          :headers="uploadHeaders"
+          :before-upload="beforeUpload"
+          :on-success="onUploadSuccess"
+          :on-error="onUploadError"
+          :show-file-list="false"
+          accept=".xlsx,.xls"
+          style="display: inline-block; margin-right: 12px;"
+        >
+          <el-button>
+            <el-icon>
+              <Upload />
+            </el-icon>
+            导入数据
+          </el-button>
+        </el-upload>
+        <el-button @click="handleExport">
           <el-icon>
             <Download />
           </el-icon>
@@ -69,7 +87,7 @@
         <el-table-column prop="education" label="学历" width="100" />
         <el-table-column prop="work_age_months" label="工龄(月)" width="100" />
         <el-table-column prop="entry_date" label="入职时间" width="120" sortable />
-        <el-table-column prop="region" label="组织区域" width="100" />
+        <el-table-column prop="organization_region" label="组织区域" width="100" />
         <el-table-column prop="region" label="区域" width="100" />
         <el-table-column prop="employee_type" label="员工性质" width="100" />
         <el-table-column prop="marital_status" label="婚姻状况" width="100" />
@@ -99,7 +117,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Download, User, Search, Refresh } from '@element-plus/icons-vue'
+import { Plus, Download, Upload, User, Search, Refresh } from '@element-plus/icons-vue'
 import { employeeApi } from '../api'
 import { calculateAge, calculateWorkAge } from '../utils'
 
@@ -116,6 +134,13 @@ const departments = ref([])
 // 表格数据
 const tableData = ref([])
 const loading = ref(false)
+
+// 上传相关
+const uploadRef = ref()
+const uploadUrl = ref('http://localhost:3001/api/employee/roster/import')
+const uploadHeaders = ref({
+  'Content-Type': 'multipart/form-data'
+})
 
 // 分页信息
 const pagination = reactive({
@@ -183,8 +208,95 @@ const handleCurrentChange = (page) => {
   fetchEmployeeData()
 }
 
+// 新增员工
+const handleAddEmployee = () => {
+  ElMessage.info('新增员工功能开发中...')
+}
+
+// 导出数据
+const handleExport = async () => {
+  try {
+    const params = {
+      ...searchForm
+    }
+
+    const response = await employeeApi.exportRoster(params)
+
+    if (response.success) {
+      // 创建Excel文件并下载
+      const data = response.data
+      const headers = [
+        '序列', '区域', '部门', '岗位', '名字', '性别', '民族', '政治面貌', '员工性质', '险种',
+        '出生日期', '生日', '入职时间', '实际转正日期', '备注', '合同终止日期', '工龄（月）',
+        '身份证号', '身份证地址', '年龄', '籍贯', '毕业院校', '专业', '学历', '教育方式',
+        '毕业日期', '面试官姓名', '婚姻状况', '现居住地', '本人联系方式', '紧急联系人姓名',
+        '紧急联系人电话', '银行卡号', '详细支行信息', '劳动关系隶属(*)', '社保隶属(*)',
+        '竞业协议', '保密协议', '备注1', '备注2'
+      ]
+
+      // 转换数据为CSV格式
+      const csvContent = [
+        headers.join(','),
+        ...data.map(row => headers.map(header => row[header] || '').join(','))
+      ].join('\n')
+
+      // 创建下载链接
+      const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' })
+      const link = document.createElement('a')
+      const url = URL.createObjectURL(blob)
+      link.setAttribute('href', url)
+      link.setAttribute('download', `员工花名册_${new Date().toISOString().split('T')[0]}.csv`)
+      link.style.visibility = 'hidden'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+
+      ElMessage.success('导出成功')
+    }
+  } catch (error) {
+    console.error('导出失败:', error)
+    ElMessage.error('导出失败')
+  }
+}
+
+// 上传前验证
+const beforeUpload = (file) => {
+  const isExcel = file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+                  file.type === 'application/vnd.ms-excel'
+
+  if (!isExcel) {
+    ElMessage.error('只能上传Excel文件!')
+    return false
+  }
+
+  const isLt10M = file.size / 1024 / 1024 < 10
+  if (!isLt10M) {
+    ElMessage.error('文件大小不能超过10MB!')
+    return false
+  }
+
+  return true
+}
+
+// 上传成功
+const onUploadSuccess = (response) => {
+  if (response.success) {
+    ElMessage.success(response.message)
+    fetchEmployeeData() // 刷新数据
+  } else {
+    ElMessage.error(response.error || '上传失败')
+  }
+}
+
+// 上传失败
+const onUploadError = (error) => {
+  console.error('上传失败:', error)
+  ElMessage.error('上传失败，请重试')
+}
+
 // 编辑员工
 const handleEdit = (row) => {
+  console.log('编辑员工:', row)
   ElMessage.info('编辑功能开发中...')
 }
 

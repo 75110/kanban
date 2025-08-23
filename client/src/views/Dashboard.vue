@@ -110,56 +110,23 @@
             :growth-type="getGrowthType()"
           />
 
-          <StatCard
-            title="入职人数"
-            :value="dashboardStore.stats.newEmployees || 0"
-            type="success"
-            :growth="getGrowthRate('newEmployees')"
-            :growth-type="getGrowthType()"
-          />
+          <StatCard title="入职人数" :value="dashboardStore.stats.newEmployees || 0" type="success"
+            :growth="getGrowthRate('newEmployees')" :growth-type="getGrowthType()" />
 
-          <StatCard
-            title="离职人数"
-            :value="dashboardStore.stats.resignedEmployees || 0"
-            type="warning"
-            :growth="getGrowthRate('resignedEmployees')"
-            :growth-type="getGrowthType()"
-          />
+          <StatCard title="离职人数" :value="dashboardStore.stats.resignedEmployees || 0" type="warning"
+            :growth="getGrowthRate('resignedEmployees')" :growth-type="getGrowthType()" />
 
-          <StatCard
-            title="异动人数"
-            :value="dashboardStore.stats.transferEmployees || 0"
-            type="danger"
-            :growth="getGrowthRate('transferEmployees')"
-            :growth-type="getGrowthType()"
-          />
+          <StatCard title="异动人数" :value="dashboardStore.stats.transferEmployees || 0" type="danger"
+            :growth="getGrowthRate('transferEmployees')" :growth-type="getGrowthType()" />
 
-          <StatCard
-            title="综合异动率"
-            :value="parseFloat(calculateChangeRate().toFixed(2))"
-            type="info"
-            :growth="getGrowthRate('changeRate')"
-            :growth-type="getGrowthType()"
-            suffix="%"
-          />
+          <StatCard title="综合异动率" :value="parseFloat(calculateChangeRate().toFixed(2))" type="info"
+            :growth="getGrowthRate('changeRate')" :growth-type="getGrowthType()" suffix="%" />
 
-          <StatCard
-            title="新进率"
-            :value="parseFloat(calculateNewEmployeeRate().toFixed(2))"
-            type="success"
-            :growth="getGrowthRate('newEmployeeRate')"
-            :growth-type="getGrowthType()"
-            suffix="%"
-          />
+          <StatCard title="新进率" :value="parseFloat(calculateNewEmployeeRate().toFixed(2))" type="success"
+            :growth="getGrowthRate('newEmployeeRate')" :growth-type="getGrowthType()" suffix="%" />
 
-          <StatCard
-            title="离职率"
-            :value="parseFloat(calculateResignationRate().toFixed(2))"
-            type="warning"
-            :growth="getGrowthRate('resignationRate')"
-            :growth-type="getGrowthType()"
-            suffix="%"
-          />
+          <StatCard title="离职率" :value="parseFloat(calculateResignationRate().toFixed(2))" type="warning"
+            :growth="getGrowthRate('resignationRate')" :growth-type="getGrowthType()" suffix="%" />
         </div>
       </div>
 
@@ -167,47 +134,22 @@
       <div class="charts-layout">
         <!-- 第一行：3个图表 -->
         <div class="charts-main-row">
-          <ChartCard
-            v-if="dashboardStore.workAgeChartData"
-            title="司龄分布情况"
-            type="pie"
-            chart-type="workAge"
-            :data="dashboardStore.workAgeChartData"
-            :loading="dashboardStore.loading.workAge"
-            @chart-click="handleChartClick"
-          />
-          <ChartCard
-            v-if="dashboardStore.educationChartData"
-            title="学历分布"
-            type="pie"
-            pie-style="solid"
-            chart-type="education"
-            :data="dashboardStore.educationChartData"
-            :loading="dashboardStore.loading.education"
-            @chart-click="handleChartClick"
-          />
-          <ChartCard
-            v-if="dashboardStore.departmentChartData"
-            title="各部门员异动"
-            type="bar"
-            chart-type="department"
-            :data="dashboardStore.departmentChartData"
-            :loading="dashboardStore.loading.department"
-            @chart-click="handleChartClick"
-          />
+          <ChartCard v-if="dashboardStore.workAgeChartData" title="司龄分布情况" type="pie" chart-type="workAge"
+            :data="dashboardStore.workAgeChartData" :loading="dashboardStore.loading.workAge"
+            @chart-click="handleChartClick" />
+          <ChartCard v-if="dashboardStore.educationChartData" title="学历分布" type="pie" pie-style="solid"
+            chart-type="education" :data="dashboardStore.educationChartData" :loading="dashboardStore.loading.education"
+            @chart-click="handleChartClick" />
+          <ChartCard v-if="dashboardStore.departmentChartData" title="各部门员异动" type="bar" chart-type="department"
+            :data="dashboardStore.departmentChartData" :loading="dashboardStore.loading.department"
+            @chart-click="handleChartClick" />
         </div>
 
         <!-- 第二行：各部门在职人数详细图表 -->
         <div class="charts-detail-row">
-          <ChartCard
-            v-if="dashboardStore.departmentChartData"
-            title="各部门在职人数"
-            type="bar"
-            chart-type="department"
-            :data="dashboardStore.departmentChartData"
-            :loading="dashboardStore.loading.department"
-            @chart-click="handleChartClick"
-          />
+          <ChartCard v-if="dashboardStore.departmentChartData" title="各部门在职人数" type="bar" chart-type="department"
+            :data="dashboardStore.departmentChartData" :loading="dashboardStore.loading.department"
+            @chart-click="handleChartClick" />
         </div>
       </div>
     </div>
@@ -218,50 +160,33 @@
       <div v-if="hasTurnoverFilters" class="turnover-filters-display">
         <div class="chart-filters-header">
           <span class="chart-filters-title">
-            <el-icon><Filter /></el-icon>
+            <el-icon>
+              <Filter />
+            </el-icon>
             人才流失筛选
           </span>
-          <el-button
-            type="text"
-            size="small"
-            @click="clearAllTurnoverFilters"
-            class="clear-filters-btn"
-          >
-            <el-icon><Close /></el-icon>
+          <el-button type="text" size="small" @click="clearAllTurnoverFilters" class="clear-filters-btn">
+            <el-icon>
+              <Close />
+            </el-icon>
             清除筛选
           </el-button>
         </div>
         <div class="chart-filters-tags">
-          <el-tag
-            v-if="dashboardStore.turnoverChartFilters.department"
-            type="primary"
-            closable
-            @close="clearTurnoverFilter('department')"
-          >
+          <el-tag v-if="dashboardStore.turnoverChartFilters.department" type="primary" closable
+            @close="clearTurnoverFilter('department')">
             部门：{{ dashboardStore.turnoverChartFilters.department }}
           </el-tag>
-          <el-tag
-            v-if="dashboardStore.turnoverChartFilters.reason"
-            type="success"
-            closable
-            @close="clearTurnoverFilter('reason')"
-          >
+          <el-tag v-if="dashboardStore.turnoverChartFilters.reason" type="success" closable
+            @close="clearTurnoverFilter('reason')">
             离职原因：{{ dashboardStore.turnoverChartFilters.reason }}
           </el-tag>
-          <el-tag
-            v-if="dashboardStore.turnoverChartFilters.position"
-            type="warning"
-            closable
-            @close="clearTurnoverFilter('position')"
-          >
+          <el-tag v-if="dashboardStore.turnoverChartFilters.position" type="warning" closable
+            @close="clearTurnoverFilter('position')">
             岗位：{{ dashboardStore.turnoverChartFilters.position }}
           </el-tag>
-          <el-tag
-            v-if="dashboardStore.turnoverChartFilters.tenure"
-            type="info"
-            closable
-            @close="clearTurnoverFilter('tenure')"
-          >
+          <el-tag v-if="dashboardStore.turnoverChartFilters.tenure" type="info" closable
+            @close="clearTurnoverFilter('tenure')">
             在职时间：{{ dashboardStore.turnoverChartFilters.tenure }}
           </el-tag>
         </div>
@@ -270,22 +195,11 @@
       <!-- 人才流失统计卡片 -->
       <div class="dashboard-layout">
         <div class="stats-grid" :class="{ 'loading': isRefreshing }">
-          <StatCard
-            title="总离职人数"
-            :value="turnoverStats.totalResigned || 0"
-            type="danger"
-            :growth="getTurnoverGrowthRate('totalResigned')"
-            :growth-type="getGrowthType()"
-          />
+          <StatCard title="总离职人数" :value="turnoverStats.totalResigned || 0" type="danger"
+            :growth="getTurnoverGrowthRate('totalResigned')" :growth-type="getGrowthType()" />
 
-          <StatCard
-            title="离职率"
-            :value="parseFloat(calculateTurnoverRate().toFixed(2))"
-            type="warning"
-            :growth="getTurnoverGrowthRate('turnoverRate')"
-            :growth-type="getGrowthType()"
-            suffix="%"
-          />
+          <StatCard title="离职率" :value="parseFloat(calculateTurnoverRate().toFixed(2))" type="warning"
+            :growth="getTurnoverGrowthRate('turnoverRate')" :growth-type="getGrowthType()" suffix="%" />
         </div>
       </div>
 
@@ -293,60 +207,27 @@
       <div class="charts-layout">
         <!-- 第一行：离职部门分布、在职时间分布和离职原因 -->
         <div class="charts-main-row">
-          <ChartCard
-            v-if="turnoverDepartmentData"
-            title="离职最多的部门前5"
-            type="pie"
-            chart-type="resignationDepartment"
-            :data="turnoverDepartmentData"
-            :loading="turnoverLoading.department"
-            @chart-click="handleTurnoverChartClick"
-          />
-          <ChartCard
-            v-if="turnoverTenureData"
-            title="离职人员在职时间分布"
-            type="pie"
-            pie-style="solid"
-            chart-type="resignationTenure"
-            :data="turnoverTenureData"
-            :loading="turnoverLoading.tenure"
-            @chart-click="handleTurnoverChartClick"
-          />
-          <ChartCard
-            v-if="turnoverReasonData"
-            title="离职原因分析"
-            type="bar"
-            chart-type="resignationReason"
-            :data="turnoverReasonData"
-            :loading="turnoverLoading.reason"
-            @chart-click="handleTurnoverChartClick"
-          />
+          <ChartCard v-if="turnoverDepartmentData" title="离职最多的部门前5" type="pie" chart-type="resignationDepartment"
+            :data="turnoverDepartmentData" :loading="turnoverLoading.department"
+            @chart-click="handleTurnoverChartClick" />
+          <ChartCard v-if="turnoverTenureData" title="离职人员在职时间分布" type="pie" pie-style="solid"
+            chart-type="resignationTenure" :data="turnoverTenureData" :loading="turnoverLoading.tenure"
+            @chart-click="handleTurnoverChartClick" />
+          <ChartCard v-if="turnoverReasonData" title="离职原因分析" type="bar" chart-type="resignationReason"
+            :data="turnoverReasonData" :loading="turnoverLoading.reason" @chart-click="handleTurnoverChartClick" />
         </div>
 
         <!-- 第二行：离职人员部门统计 -->
         <div class="charts-detail-row">
-          <ChartCard
-            v-if="turnoverDepartmentStatsData"
-            title="离职人员的部门人数统计"
-            type="bar"
-            chart-type="resignationDepartmentStats"
-            :data="turnoverDepartmentStatsData"
-            :loading="turnoverLoading.departmentStats"
-            @chart-click="handleTurnoverChartClick"
-          />
+          <ChartCard v-if="turnoverDepartmentStatsData" title="离职人员的部门人数统计" type="bar"
+            chart-type="resignationDepartmentStats" :data="turnoverDepartmentStatsData"
+            :loading="turnoverLoading.departmentStats" @chart-click="handleTurnoverChartClick" />
         </div>
 
         <!-- 第三行：离职岗位分布 -->
         <div class="charts-detail-row">
-          <ChartCard
-            v-if="turnoverPositionData"
-            title="离职岗位分布"
-            type="bar"
-            chart-type="resignationPosition"
-            :data="turnoverPositionData"
-            :loading="turnoverLoading.position"
-            @chart-click="handleTurnoverChartClick"
-          />
+          <ChartCard v-if="turnoverPositionData" title="离职岗位分布" type="bar" chart-type="resignationPosition"
+            :data="turnoverPositionData" :loading="turnoverLoading.position" @chart-click="handleTurnoverChartClick" />
         </div>
       </div>
     </div>
@@ -937,7 +818,7 @@ const exportAllCharts = async () => {
 const getGrowthValue = (key) => {
   const growth = dashboardStore.stats.growth
   const growthType = getGrowthType()
-  
+
   if (growthType === 'month' && growth.monthOverMonth) {
     return parseFloat(growth.monthOverMonth[key]) || null
   } else if (growthType === 'year' && growth.yearOverYear) {
@@ -1437,7 +1318,8 @@ onMounted(async () => {
 
 <style scoped>
 .dashboard {
-  padding: 16px 32px 32px 32px; /* 减少顶部padding，保持其他方向 */
+  padding: 16px 32px 32px 32px;
+  /* 减少顶部padding，保持其他方向 */
   background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
   min-height: 100vh;
 }
@@ -1700,7 +1582,7 @@ onMounted(async () => {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.charts-main-row > * {
+.charts-main-row>* {
   height: 520px;
 }
 
@@ -1710,7 +1592,7 @@ onMounted(async () => {
   gap: 32px;
 }
 
-.charts-detail-row > * {
+.charts-detail-row>* {
   height: 520px;
 }
 
@@ -1808,7 +1690,8 @@ onMounted(async () => {
   }
 
   .page-logo {
-    width: 200px; /* 移动端匹配较小的标题宽度 */
+    width: 200px;
+    /* 移动端匹配较小的标题宽度 */
     height: 50px;
     margin-bottom: 6px;
   }
@@ -1844,11 +1727,11 @@ onMounted(async () => {
     gap: 20px;
   }
 
-  .charts-main-row > * {
+  .charts-main-row>* {
     height: 380px;
   }
 
-  .charts-detail-row > * {
+  .charts-detail-row>* {
     height: 380px;
   }
 }
