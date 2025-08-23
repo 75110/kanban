@@ -23,7 +23,7 @@
           <el-icon><User /></el-icon>
           <template #title>员工花名册</template>
         </el-menu-item>
-        
+
         <el-menu-item index="/resignation-monitoring">
           <el-icon><UserFilled /></el-icon>
           <template #title>离职监控</template>

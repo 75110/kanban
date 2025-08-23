@@ -273,8 +273,15 @@
   }
 }
 
-/* 针对Windows系统的字体优化 */
-@media screen and (-ms-high-contrast: active), (-ms-high-contrast: none) {
+/* 针对Windows系统的字体优化 - 使用现代的forced-colors媒体查询 */
+@media (forced-colors: active) {
+  * {
+    font-family: 'Microsoft YaHei', '微软雅黑', 'Segoe UI', Tahoma, Arial, sans-serif;
+  }
+}
+
+/* 为了向后兼容，保留对旧版本IE的支持 */
+@media screen and (-ms-high-contrast: active) {
   * {
     font-family: 'Microsoft YaHei', '微软雅黑', 'Segoe UI', Tahoma, Arial, sans-serif;
   }

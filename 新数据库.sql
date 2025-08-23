@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS `sys_political_status`
 CREATE TABLE IF NOT EXISTS `sys_resign_type`
 (
     `id`          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT UNIQUE,
-    `region_type` VARCHAR(50)     NOT NULL UNIQUE,
+    `resign_type` VARCHAR(50)     NOT NULL UNIQUE,
     PRIMARY KEY (`id`)
 ) COMMENT ='离职类型字典表';
 

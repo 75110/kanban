@@ -143,14 +143,29 @@ export const useDashboardStore = defineStore("dashboard", {
     async fetchFilterOptions() {
       this.loading.filterOptions = true;
       try {
-        const departmentDict = await getDepartmentDict();
-        const regionDict = await getRegionDict();
+        // 使用新的filter-options API获取所有筛选选项
+        const filterOptions = await dashboardApi.getFilterOptions();
         this.filterOptions = {
-          regions: regionDict,
-          departments: departmentDict,
+          organizationRegions: filterOptions.organizationRegions || [],
+          regions: filterOptions.regions || [],
+          departments: filterOptions.departments || [],
+          years: filterOptions.years || []
         };
       } catch (error) {
         console.error("获取筛选选项失败:", error);
+        // 如果新API失败，尝试使用旧的字典API作为备用
+        try {
+          const departmentDict = await getDepartmentDict();
+          const regionDict = await getRegionDict();
+          this.filterOptions = {
+            organizationRegions: [],
+            regions: regionDict,
+            departments: departmentDict,
+            years: [] // 年份数据无法从字典API获取
+          };
+        } catch (fallbackError) {
+          console.error("备用筛选选项获取也失败:", fallbackError);
+        }
       } finally {
         this.loading.filterOptions = false;
       }
@@ -163,10 +178,24 @@ export const useDashboardStore = defineStore("dashboard", {
         const data = await dashboardApi.getStats(this.currentFilters);
         // 只有成功获取数据后才更新，避免闪烁
         if (data) {
+          // 确保增长数据结构完整
+          if (!data.growth) {
+            data.growth = {
+              monthOverMonth: null,
+              yearOverYear: null
+            };
+          }
           this.stats = data;
         }
       } catch (error) {
         console.error("获取统计数据失败:", error);
+        // API失败时，确保stats有基本结构，避免undefined错误
+        if (!this.stats.growth) {
+          this.stats.growth = {
+            monthOverMonth: null,
+            yearOverYear: null
+          };
+        }
       } finally {
         this.loading.stats = false;
       }

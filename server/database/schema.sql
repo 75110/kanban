@@ -1,129 +1,169 @@
--- 人事数据看板数据库结构
+-- 人事数据看板数据库结构 - 新版本规范化设计
 
 -- 创建数据库
 CREATE DATABASE IF NOT EXISTS hr_dashboard CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE hr_dashboard;
 
--- 员工花名册表
-CREATE TABLE IF NOT EXISTS employee_roster (
-  sequence_number VARCHAR(50) COMMENT '序列',
-  region VARCHAR(50) COMMENT '区域',
-  department VARCHAR(100) COMMENT '部门',
-  position VARCHAR(100) COMMENT '岗位',
-  name VARCHAR(50) NOT NULL COMMENT '名字',
-  gender ENUM('男', '女') COMMENT '性别',
-  ethnicity VARCHAR(50) COMMENT '民族',
-  political_status VARCHAR(50) COMMENT '政治面貌',
-  employee_type VARCHAR(50) COMMENT '员工性质',
-  insurance_type VARCHAR(50) COMMENT '险种',
-  birth_date DATE COMMENT '出生日期',
-  birthday VARCHAR(10) COMMENT '生日',
-  entry_date DATE COMMENT '入职时间',
-  actual_regularization_date TEXT COMMENT '实际转正日期',
-  remarks TEXT COMMENT '备注',
-  contract_end_date DATE COMMENT '合同终止日期',
-  work_age_months INT COMMENT '工龄（月）',
-  id_card_number VARCHAR(18) COMMENT '身份证号',
-  id_card_address TEXT COMMENT '身份证地址',
-  age INT COMMENT '年龄',
-  hometown VARCHAR(100) COMMENT '籍贯',
-  graduation_school VARCHAR(200) COMMENT '毕业院校',
-  major VARCHAR(100) COMMENT '专业',
-  education VARCHAR(50) COMMENT '学历',
-  education_method VARCHAR(50) COMMENT '教育方式',
-  graduation_date DATE COMMENT '毕业日期',
-  interviewer_name VARCHAR(50) COMMENT '面试官姓名',
-  marital_status VARCHAR(20) COMMENT '婚姻状况',
-  current_address TEXT COMMENT '现居住地',
-  personal_contact VARCHAR(50) COMMENT '本人联系方式',
-  emergency_contact_name VARCHAR(50) COMMENT '紧急联系人姓名',
-  emergency_contact_phone VARCHAR(50) COMMENT '紧急联系人电话',
-  bank_card_number VARCHAR(50) COMMENT '银行卡号',
-  bank_branch_info TEXT COMMENT '详细支行信息',
-  labor_relation_affiliation VARCHAR(100) COMMENT '劳动关系隶属(*)',
-  social_insurance_affiliation VARCHAR(100) COMMENT '社保隶属(*)',
-  non_compete_agreement VARCHAR(10) COMMENT '竞业协议',
-  confidentiality_agreement VARCHAR(10) COMMENT '保密协议',
-  remarks1 TEXT COMMENT '备注1',
-  remarks2 TEXT COMMENT '备注2',
-  organization_region VARCHAR(50) COMMENT '组织区域',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  INDEX idx_region (region),
-  INDEX idx_department (department),
-  INDEX idx_entry_date (entry_date),
-  INDEX idx_name (name),
-  INDEX idx_organization_region (organization_region)
-) COMMENT='员工花名册';
+-- 区域字典表
+CREATE TABLE IF NOT EXISTS `sys_region`
+(
+    `id`     BIGINT UNSIGNED NOT NULL AUTO_INCREMENT UNIQUE,
+    `region` VARCHAR(50)     NOT NULL UNIQUE,
+    PRIMARY KEY (`id`)
+) COMMENT ='区域字典表';
 
--- 离职监控表
-CREATE TABLE IF NOT EXISTS resignation_monitoring (
-  id INT PRIMARY KEY AUTO_INCREMENT,
-  sequence_number VARCHAR(50) COMMENT '序列',
-  region VARCHAR(50) COMMENT '区域',
-  department VARCHAR(100) COMMENT '部门',
-  position VARCHAR(100) COMMENT '岗位',
-  name VARCHAR(50) NOT NULL COMMENT '姓名',
-  gender ENUM('男', '女') COMMENT '性别',
-  ethnicity VARCHAR(50) COMMENT '民族',
-  political_status VARCHAR(50) COMMENT '政治面貌',
-  employee_type VARCHAR(50) COMMENT '员工性质',
-  insurance_type VARCHAR(50) COMMENT '险种',
-  birth_date DATE COMMENT '出生日期',
-  birthday VARCHAR(10) COMMENT '生日',
-  entry_date DATE COMMENT '入职时间',
-  actual_regularization_date TEXT COMMENT '实际转正日期',
-  remarks TEXT COMMENT '备注',
-  contract_end_date DATE COMMENT '合同终止日期',
-  work_age_months INT COMMENT '工龄（月）',
-  id_card_number VARCHAR(18) COMMENT '身份证号',
-  id_card_address TEXT COMMENT '身份证地址',
-  age INT COMMENT '年龄',
-  hometown VARCHAR(100) COMMENT '籍贯',
-  graduation_school VARCHAR(200) COMMENT '毕业院校',
-  major VARCHAR(100) COMMENT '专业',
-  education VARCHAR(50) COMMENT '学历',
-  education_method VARCHAR(50) COMMENT '教育方式',
-  graduation_date TEXT COMMENT '毕业日期',
-  interviewer_name VARCHAR(50) COMMENT '面试官姓名',
-  marital_status VARCHAR(20) COMMENT '婚姻状况',
-  current_address TEXT COMMENT '现居住地',
-  personal_contact VARCHAR(50) COMMENT '本人联系方式',
-  emergency_contact_name VARCHAR(50) COMMENT '紧急联系人姓名',
-  emergency_contact_phone VARCHAR(50) COMMENT '紧急联系人电话',
-  bank_card_number VARCHAR(50) COMMENT '银行卡号',
-  bank_branch_info TEXT COMMENT '详细支行信息',
-  labor_relation_affiliation VARCHAR(100) COMMENT '劳动关系隶属(*)',
-  social_insurance_affiliation VARCHAR(100) COMMENT '社保隶属(*)',
-  non_compete_agreement VARCHAR(10) COMMENT '竞业协议',
-  confidentiality_agreement VARCHAR(10) COMMENT '保密协议',
-  resignation_date DATE COMMENT '离职时间',
-  resignation_type VARCHAR(50) COMMENT '离职类型',
-  resignation_reason TEXT COMMENT '离职原因',
-  resignation_remarks TEXT COMMENT '备注',
-  organization_region VARCHAR(50) COMMENT '组织区域',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  INDEX idx_region (region),
-  INDEX idx_department (department),
-  INDEX idx_resignation_date (resignation_date),
-  INDEX idx_name (name),
-  INDEX idx_organization_region (organization_region)
-) COMMENT='离职监控表';
+-- 部门字典表
+CREATE TABLE IF NOT EXISTS `sys_department`
+(
+    `id`         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT UNIQUE,
+    `department` VARCHAR(100)    NOT NULL UNIQUE,
+    PRIMARY KEY (`id`)
+) COMMENT ='部门字典表';
 
--- 人员异动明细表
-CREATE TABLE IF NOT EXISTS personnel_changes (
-  id INT PRIMARY KEY AUTO_INCREMENT,
-  department VARCHAR(100) COMMENT '部门',
-  name VARCHAR(50) NOT NULL COMMENT '姓名',
-  original_position VARCHAR(100) COMMENT '原岗位',
-  new_position VARCHAR(100) COMMENT '新岗位',
-  transfer_date DATE COMMENT '异动时间',
-  change_reason VARCHAR(100) COMMENT '异动原因（调动/晋升/降职）',
-  remarks TEXT COMMENT '备注',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  INDEX idx_department (department),
-  INDEX idx_name (name),
-  INDEX idx_transfer_date (transfer_date)
-) COMMENT='人员异动明细表';
+-- 岗位字典表
+CREATE TABLE IF NOT EXISTS `sys_position`
+(
+    `id`       BIGINT UNSIGNED NOT NULL AUTO_INCREMENT UNIQUE,
+    `position` VARCHAR(50)     NOT NULL UNIQUE,
+    PRIMARY KEY (`id`)
+) COMMENT ='岗位字典表';
+
+-- 公司字典表
+CREATE TABLE IF NOT EXISTS `sys_company`
+(
+    `id`      BIGINT UNSIGNED NOT NULL AUTO_INCREMENT UNIQUE,
+    `company` VARCHAR(100)    NOT NULL UNIQUE,
+    PRIMARY KEY (`id`)
+) COMMENT ='公司字典表';
+
+-- 政治面貌字典表
+CREATE TABLE IF NOT EXISTS `sys_political_status`
+(
+    `id`               BIGINT UNSIGNED NOT NULL AUTO_INCREMENT UNIQUE,
+    `political_status` VARCHAR(50)     NOT NULL UNIQUE,
+    PRIMARY KEY (`id`)
+) COMMENT ='政治面貌字典表';
+
+-- 离职类型字典表
+CREATE TABLE IF NOT EXISTS `sys_resign_type`
+(
+    `id`          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT UNIQUE,
+    `region_type` VARCHAR(50)     NOT NULL UNIQUE,
+    PRIMARY KEY (`id`)
+) COMMENT ='离职类型字典表';
+
+-- 婚姻状况字典表
+CREATE TABLE IF NOT EXISTS `sys_marital_status`
+(
+    `id`             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT UNIQUE,
+    `marital_status` VARCHAR(50)     NOT NULL UNIQUE,
+    PRIMARY KEY (`id`)
+) COMMENT ='婚姻状况字典表';
+
+-- 学历字典表
+CREATE TABLE IF NOT EXISTS `sys_education`
+(
+    `id`        BIGINT UNSIGNED NOT NULL AUTO_INCREMENT UNIQUE,
+    `education` VARCHAR(50)     NOT NULL UNIQUE,
+    PRIMARY KEY (`id`)
+) COMMENT = '学历字典表';
+
+-- 教育方式字典表
+CREATE TABLE IF NOT EXISTS `sys_education_mode`
+(
+    `id`             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT UNIQUE,
+    `education_mode` VARCHAR(50)     NOT NULL UNIQUE,
+    PRIMARY KEY (`id`)
+) COMMENT = '教育方式典表';
+
+-- 员工基本信息表
+CREATE TABLE IF NOT EXISTS `employee_basic_info`
+(
+    `id`                      BIGINT UNSIGNED NOT NULL AUTO_INCREMENT UNIQUE,
+    `name`                    VARCHAR(100)    NOT NULL COMMENT '姓名',
+    `gender`                  CHAR(1)         NOT NULL COMMENT '性别: M(男), F(女), O(其他)',
+    `birth_date`              DATE COMMENT '出生日期',
+    `native_place`            VARCHAR(255) COMMENT '籍贯',
+    `political_status_id`     BIGINT UNSIGNED COMMENT '政治面貌ID -> sys_political_status.id',
+    `id_number`               CHAR(18) UNIQUE COMMENT '身份证号',
+    `id_address`              VARCHAR(255) COMMENT '身份证地址',
+    `current_address`         VARCHAR(255) COMMENT '现居住地',
+    `phone_number`            VARCHAR(50) COMMENT '本人联系方式',
+    `emergency_contact_name`  VARCHAR(100) COMMENT '紧急联系人姓名',
+    `emergency_contact_phone` VARCHAR(50) COMMENT '紧急联系人电话',
+    `bank_account`            VARCHAR(50) COMMENT '银行卡号',
+    `bank_branch`             VARCHAR(255) COMMENT '详细支行信息',
+    `graduation_school`       VARCHAR(100) COMMENT '毕业院校',
+    `major`                   VARCHAR(255) COMMENT '专业',
+    `education_id`            BIGINT UNSIGNED COMMENT '学历ID -> sys_education.id',
+    `education_mode_id`       BIGINT UNSIGNED COMMENT '教育方式ID -> sys_education_mode.id',
+    `graduation_date`         DATE COMMENT '毕业日期',
+    `interviewer_name`        VARCHAR(100) COMMENT '面试官姓名',
+    `marital_status_id`       BIGINT UNSIGNED COMMENT '婚姻状况ID -> sys_marital_status.id',
+    `created_at`              DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at`              DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY uniq_id_birth_name (id_number, birth_date, name)
+) COMMENT ='员工基本信息表';
+
+-- 员工任职信息表
+CREATE TABLE IF NOT EXISTS `employee_position_info`
+(
+    `id`                          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT UNIQUE,
+    `employee_id`                 BIGINT UNSIGNED NOT NULL COMMENT '员工ID -> employee_basic_info.id',
+    `region_id`                   BIGINT UNSIGNED NOT NULL COMMENT '区域ID -> sys_region.id',
+    `department_id`               BIGINT UNSIGNED NOT NULL COMMENT '部门ID -> sys_department.id',
+    `position_id`                 BIGINT UNSIGNED NOT NULL COMMENT '岗位ID -> sys_position.id',
+    `employee_type`               TINYINT         NOT NULL COMMENT '员工性质: 1(正式)、2(试用)、3(实习)',
+    `insurance_type`              TINYINT COMMENT '险种: 1(社保)、2(工伤)、null(无)',
+    `labor_relationship`          BIGINT UNSIGNED COMMENT '劳动关系隶属 -> sys_company.id,null 没有隶属',
+    `social_security_affiliation` BIGINT UNSIGNED COMMENT '社保隶属 -> sys_company.id, null 没有隶属',
+    `non_compete_agreement`       BOOLEAN COMMENT '是否签署竞业协议: true(签署)、false(未签署)、null(未知)',
+    `confidentiality_agreement`   BOOLEAN COMMENT '是否签署保密协议: true(签署)、false(未签署)、null(未知)',
+    `entry_date`                  DATE            NOT NULL COMMENT '入职时间',
+    `actual_regularization_date`  DATE COMMENT '实际转正日期',
+    `contract_end_date`           DATE COMMENT '合同终止日期',
+    `remarks`                     TEXT(65535) COMMENT '备注',
+    `created_at`                  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at`                  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`)
+) COMMENT ='员工任职信息表';
+
+-- 员工离职信息表
+CREATE TABLE IF NOT EXISTS `employee_resignation_info`
+(
+    `id`                  BIGINT UNSIGNED NOT NULL AUTO_INCREMENT UNIQUE COMMENT '离职记录唯一ID',
+    `employee_id`         BIGINT UNSIGNED NOT NULL COMMENT '员工ID -> employee_basic_info.id',
+    `resignation_date`    DATE COMMENT '离职时间',
+    `resignation_type_id` BIGINT UNSIGNED COMMENT '离职类型ID -> sys_resign_type.id',
+    `resignation_reason`  TEXT(65535) COMMENT '离职原因',
+    `created_at`          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at`          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`)
+) COMMENT ='员工离职信息表';
+
+-- 外键约束
+ALTER TABLE `employee_position_info`
+    ADD FOREIGN KEY (`employee_id`) REFERENCES `employee_basic_info` (`id`) ON UPDATE NO ACTION ON DELETE CASCADE;
+ALTER TABLE `employee_position_info`
+    ADD FOREIGN KEY (`region_id`) REFERENCES `sys_region` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION;
+ALTER TABLE `employee_position_info`
+    ADD FOREIGN KEY (`department_id`) REFERENCES `sys_department` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION;
+ALTER TABLE `employee_position_info`
+    ADD FOREIGN KEY (`position_id`) REFERENCES `sys_position` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION;
+ALTER TABLE `employee_position_info`
+    ADD FOREIGN KEY (`labor_relationship`) REFERENCES `sys_company` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION;
+ALTER TABLE `employee_position_info`
+    ADD FOREIGN KEY (`social_security_affiliation`) REFERENCES `sys_company` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION;
+ALTER TABLE `employee_resignation_info`
+    ADD FOREIGN KEY (`employee_id`) REFERENCES `employee_basic_info` (`id`) ON UPDATE NO ACTION ON DELETE CASCADE;
+ALTER TABLE `employee_basic_info`
+    ADD FOREIGN KEY (`political_status_id`) REFERENCES `sys_political_status` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION;
+ALTER TABLE `employee_basic_info`
+    ADD FOREIGN KEY (`marital_status_id`) REFERENCES `sys_marital_status` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION;
+ALTER TABLE `employee_resignation_info`
+    ADD FOREIGN KEY (`resignation_type_id`) REFERENCES `sys_resign_type` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION;
+ALTER TABLE `employee_basic_info`
+    ADD FOREIGN KEY (`education_mode_id`) REFERENCES `sys_education_mode` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION;
+ALTER TABLE `employee_basic_info`
+    ADD FOREIGN KEY (`education_id`) REFERENCES `sys_education` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION;

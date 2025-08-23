@@ -14,10 +14,20 @@
         </div>
       </div>
       <div class="page-actions">
-        <el-button type="default" @click="exportDashboard" size="default" class="action-btn">
-          <el-icon><Download /></el-icon>
-          导出报告
-        </el-button>
+        <el-dropdown @command="handleExportCommand" :disabled="isExporting">
+          <el-button type="default" size="default" class="action-btn" :loading="isExporting">
+            <el-icon><Download /></el-icon>
+            导出报告
+            <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="pdf">导出PDF报告</el-dropdown-item>
+              <el-dropdown-item command="excel">导出Excel报告</el-dropdown-item>
+              <el-dropdown-item command="images" divided>导出所有图表</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
         <el-button type="primary" @click="refreshData" size="default" :loading="isRefreshing" class="action-btn">
           <el-icon><Refresh /></el-icon>
           {{ isRefreshing ? '刷新中...' : '刷新数据' }}
@@ -346,7 +356,7 @@
 <script setup>
 import { onMounted, computed, watch, ref, nextTick, shallowRef } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Refresh, Download, Filter, Close } from '@element-plus/icons-vue'
+import { Refresh, Download, Filter, Close, ArrowDown } from '@element-plus/icons-vue'
 import { useDashboardStore } from '../stores/dashboard'
 import { dashboardApi } from '../api'
 import FilterBar from '../components/FilterBar.vue'
@@ -357,6 +367,9 @@ const dashboardStore = useDashboardStore()
 
 // 刷新状态
 const isRefreshing = ref(false)
+
+// 导出状态
+const isExporting = ref(false)
 
 // 当前激活的标签页
 const activeTab = ref('overview')
@@ -425,16 +438,13 @@ const calculateResignationRate = () => {
 
 // 获取增长率
 const getGrowthRate = (field) => {
+  // 确保stats和growth对象存在
+  if (!dashboardStore.stats || !dashboardStore.stats.growth) {
+    return null
+  }
+
   const monthOverMonth = dashboardStore.stats.growth?.monthOverMonth?.[field]
   const yearOverYear = dashboardStore.stats.growth?.yearOverYear?.[field]
-
-  // 调试信息
-  console.log('Growth data:', {
-    field,
-    monthOverMonth,
-    yearOverYear,
-    fullGrowth: dashboardStore.stats.growth
-  })
 
   // 优先返回环比，如果没有则返回同比
   if (monthOverMonth !== null && monthOverMonth !== undefined) {
@@ -444,20 +454,483 @@ const getGrowthRate = (field) => {
     return parseFloat(yearOverYear)
   }
 
-  // 如果没有真实数据，返回一些模拟数据用于测试显示
-  const mockGrowthData = {
-    totalEmployees: 5.2,
-    newEmployees: 12.8,
-    resignedEmployees: -3.4,
-    transferEmployees: 8.1
-  }
-
-  return mockGrowthData[field] || null
+  // 如果没有真实数据，返回null（不显示增长率）
+  return null
 }
 
-// 导出看板报告
-const exportDashboard = () => {
-  ElMessage.info('导出功能开发中...')
+// 处理导出命令
+const handleExportCommand = (command) => {
+  switch (command) {
+    case 'pdf':
+      exportDashboardAsPDF()
+      break
+    case 'excel':
+      exportDashboardAsExcel()
+      break
+    case 'images':
+      exportAllCharts()
+      break
+    default:
+      exportDashboardAsPDF()
+  }
+}
+
+// 导出仪表板为PDF
+const exportDashboardAsPDF = async () => {
+  if (isExporting.value) return
+
+  isExporting.value = true
+  try {
+    ElMessage.info('正在生成PDF报告，请稍候...')
+
+    // 动态导入html2canvas和jsPDF
+    const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+      import('html2canvas'),
+      import('jspdf')
+    ])
+
+    // 创建PDF文档
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4',
+      putOnlyUsedFonts: true,
+      compress: true
+    })
+
+    const pageWidth = pdf.internal.pageSize.getWidth()
+    const pageHeight = pdf.internal.pageSize.getHeight()
+    let currentY = 20
+
+    // 创建标题canvas来避免中文乱码
+    const createTextCanvas = (text, fontSize = 24, width = 800, height = 60) => {
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')
+      canvas.width = width
+      canvas.height = height
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      ctx.fillStyle = '#000000'
+      ctx.font = `${fontSize}px Arial, "Microsoft YaHei", "SimHei", sans-serif`
+      ctx.textAlign = 'center'
+      ctx.fillText(text, canvas.width / 2, canvas.height / 2 + fontSize / 3)
+      return canvas
+    }
+
+    // 添加标题
+    const titleCanvas = createTextCanvas('人事数据看板报告', 28, 600, 80)
+    pdf.addImage(
+      titleCanvas.toDataURL('image/png'),
+      'PNG',
+      (pageWidth - 150) / 2,
+      currentY - 10,
+      150,
+      20
+    )
+    currentY += 25
+
+    // 添加生成时间
+    const now = new Date()
+    const dateStr = `生成时间: ${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`
+    const dateCanvas = createTextCanvas(dateStr, 16, 600, 40)
+    pdf.addImage(
+      dateCanvas.toDataURL('image/png'),
+      'PNG',
+      (pageWidth - 120) / 2,
+      currentY - 5,
+      120,
+      10
+    )
+    currentY += 20
+
+    // 获取统计卡片区域
+    const statsContainer = document.querySelector('.stats-grid')
+    if (statsContainer) {
+      try {
+        const statsCanvas = await html2canvas(statsContainer, {
+          backgroundColor: '#ffffff',
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          logging: false
+        })
+
+        // 计算统计卡片的尺寸
+        const statsImgWidth = pageWidth - 20
+        const statsImgHeight = (statsCanvas.height * statsImgWidth) / statsCanvas.width
+        const maxStatsHeight = Math.min(statsImgHeight, 60)
+        const finalStatsWidth = (statsCanvas.width * maxStatsHeight) / statsCanvas.height
+
+        // 添加统计卡片
+        pdf.addImage(
+          statsCanvas.toDataURL('image/png'),
+          'PNG',
+          (pageWidth - finalStatsWidth) / 2,
+          currentY,
+          finalStatsWidth,
+          maxStatsHeight
+        )
+
+        currentY += maxStatsHeight + 20
+      } catch (error) {
+        console.error('添加统计卡片失败:', error)
+        // 如果html2canvas失败，回退到文字方式
+        const statsHeaderCanvas = createTextCanvas('关键指标', 20, 400, 50)
+        pdf.addImage(
+          statsHeaderCanvas.toDataURL('image/png'),
+          'PNG',
+          20,
+          currentY - 5,
+          80,
+          12
+        )
+        currentY += 15
+
+        const stats = dashboardStore.stats
+        const statsText = [
+          `在职人数: ${stats.totalEmployees || 0}`,
+          `入职人数: ${stats.newEmployees || 0}`,
+          `离职人数: ${stats.resignedEmployees || 0}`,
+          `调动人数: ${stats.transferEmployees || 0}`
+        ]
+
+        statsText.forEach(text => {
+          const statCanvas = createTextCanvas(text, 14, 400, 30)
+          pdf.addImage(
+            statCanvas.toDataURL('image/png'),
+            'PNG',
+            20,
+            currentY - 3,
+            100,
+            8
+          )
+          currentY += 10
+        })
+        currentY += 10
+      }
+    }
+
+    // 获取所有图表卡片并添加到PDF
+    const chartCards = document.querySelectorAll('.chart-container')
+    let chartIndex = 0
+
+    for (const chartCard of chartCards) {
+      if (currentY > pageHeight - 100) {
+        pdf.addPage()
+        currentY = 20
+      }
+
+      try {
+        // 使用html2canvas截取整个图表卡片（包括标题和图表）
+        const cardCanvas = await html2canvas(chartCard, {
+          backgroundColor: '#ffffff',
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          logging: false,
+          width: chartCard.offsetWidth,
+          height: chartCard.offsetHeight
+        })
+
+        // 计算图表卡片的尺寸
+        const cardImgWidth = pageWidth - 20
+        const cardImgHeight = (cardCanvas.height * cardImgWidth) / cardCanvas.width
+        const maxCardHeight = Math.min(cardImgHeight, 120)
+        const finalCardWidth = (cardCanvas.width * maxCardHeight) / cardCanvas.height
+
+        // 添加图表卡片
+        pdf.addImage(
+          cardCanvas.toDataURL('image/png'),
+          'PNG',
+          (pageWidth - finalCardWidth) / 2,
+          currentY,
+          finalCardWidth,
+          maxCardHeight
+        )
+
+        currentY += maxCardHeight + 15
+        chartIndex++
+      } catch (error) {
+        console.error('添加图表卡片失败:', error)
+        // 如果html2canvas失败，尝试只添加图表部分
+        try {
+          const chartElement = chartCard.querySelector('.echarts')
+          if (chartElement && chartElement.__echarts_instance__) {
+            const canvas = chartElement.__echarts_instance__.getRenderedCanvas({
+              pixelRatio: 2,
+              backgroundColor: '#fff'
+            })
+
+            const chartTitle = chartCard.querySelector('.chart-title')?.textContent || `图表 ${chartIndex + 1}`
+            const chartTitleCanvas = createTextCanvas(chartTitle, 18, 500, 40)
+            pdf.addImage(
+              chartTitleCanvas.toDataURL('image/png'),
+              'PNG',
+              20,
+              currentY - 5,
+              120,
+              10
+            )
+            currentY += 15
+
+            const imgWidth = pageWidth - 40
+            const imgHeight = (canvas.height * imgWidth) / canvas.width
+            const maxHeight = Math.min(imgHeight, 80)
+            const finalWidth = (canvas.width * maxHeight) / canvas.height
+
+            pdf.addImage(
+              canvas.toDataURL('image/png'),
+              'PNG',
+              (pageWidth - finalWidth) / 2,
+              currentY,
+              finalWidth,
+              maxHeight
+            )
+
+            currentY += maxHeight + 15
+            chartIndex++
+          }
+        } catch (fallbackError) {
+          console.error('回退方案也失败:', fallbackError)
+        }
+      }
+    }
+
+    // 保存PDF
+    const fileName = `人事数据看板报告_${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}.pdf`
+    pdf.save(fileName)
+
+    ElMessage.success('PDF报告导出成功')
+  } catch (error) {
+    console.error('导出PDF失败:', error)
+    ElMessage.error('导出PDF失败，请重试')
+  } finally {
+    isExporting.value = false
+  }
+}
+
+// 导出仪表板为Excel
+const exportDashboardAsExcel = async () => {
+  if (isExporting.value) return
+
+  isExporting.value = true
+  try {
+    ElMessage.info('正在生成Excel报告，请稍候...')
+
+    // 动态导入xlsx
+    const XLSX = await import('xlsx')
+
+    // 创建工作簿
+    const workbook = XLSX.utils.book_new()
+
+    // 添加统计数据工作表
+    const stats = dashboardStore.stats
+    const statsData = [
+      ['指标名称', '数值', '单位'],
+      ['在职人数', stats.totalEmployees || 0, '人'],
+      ['入职人数', stats.newEmployees || 0, '人'],
+      ['离职人数', stats.resignedEmployees || 0, '人'],
+      ['调动人数', stats.transferEmployees || 0, '人']
+    ]
+
+    const statsWorksheet = XLSX.utils.aoa_to_sheet(statsData)
+    XLSX.utils.book_append_sheet(workbook, statsWorksheet, '关键指标')
+
+    // 添加司龄分布数据
+    if (dashboardStore.workAgeChartData && dashboardStore.workAgeChartData.labels) {
+      const workAgeData = [
+        ['司龄', '人数'],
+        ...dashboardStore.workAgeChartData.labels.map((label, index) => [
+          label,
+          dashboardStore.workAgeChartData.values[index] || 0
+        ])
+      ]
+      const workAgeWorksheet = XLSX.utils.aoa_to_sheet(workAgeData)
+      XLSX.utils.book_append_sheet(workbook, workAgeWorksheet, '司龄分布')
+    }
+
+    // 添加学历分布数据
+    if (dashboardStore.educationChartData && dashboardStore.educationChartData.labels) {
+      const educationData = [
+        ['学历', '人数'],
+        ...dashboardStore.educationChartData.labels.map((label, index) => [
+          label,
+          dashboardStore.educationChartData.values[index] || 0
+        ])
+      ]
+      const educationWorksheet = XLSX.utils.aoa_to_sheet(educationData)
+      XLSX.utils.book_append_sheet(workbook, educationWorksheet, '学历分布')
+    }
+
+    // 添加部门统计数据
+    if (dashboardStore.departmentChartData && dashboardStore.departmentChartData.labels) {
+      const departmentData = [
+        ['部门', '人数'],
+        ...dashboardStore.departmentChartData.labels.map((label, index) => [
+          label,
+          dashboardStore.departmentChartData.values[index] || 0
+        ])
+      ]
+      const departmentWorksheet = XLSX.utils.aoa_to_sheet(departmentData)
+      XLSX.utils.book_append_sheet(workbook, departmentWorksheet, '部门统计')
+    }
+
+    // 如果是人才流失标签页，添加相关数据
+    if (activeTab.value === 'turnover') {
+      // 添加离职部门数据
+      if (turnoverDepartmentData.value && turnoverDepartmentData.value.labels) {
+        const turnoverDeptData = [
+          ['部门', '离职人数'],
+          ...turnoverDepartmentData.value.labels.map((label, index) => [
+            label,
+            turnoverDepartmentData.value.values[index] || 0
+          ])
+        ]
+        const turnoverDeptWorksheet = XLSX.utils.aoa_to_sheet(turnoverDeptData)
+        XLSX.utils.book_append_sheet(workbook, turnoverDeptWorksheet, '离职部门分布')
+      }
+
+      // 添加离职原因数据
+      if (turnoverReasonData.value && turnoverReasonData.value.labels) {
+        const turnoverReasonDataArray = [
+          ['离职原因', '人数'],
+          ...turnoverReasonData.value.labels.map((label, index) => [
+            label,
+            turnoverReasonData.value.values[index] || 0
+          ])
+        ]
+        const turnoverReasonWorksheet = XLSX.utils.aoa_to_sheet(turnoverReasonDataArray)
+        XLSX.utils.book_append_sheet(workbook, turnoverReasonWorksheet, '离职原因分析')
+      }
+    }
+
+    // 生成文件名
+    const now = new Date()
+    const fileName = `人事数据看板报告_${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}.xlsx`
+
+    // 导出文件
+    XLSX.writeFile(workbook, fileName)
+
+    ElMessage.success('Excel报告导出成功')
+  } catch (error) {
+    console.error('导出Excel失败:', error)
+    ElMessage.error('导出Excel失败，请重试')
+  } finally {
+    isExporting.value = false
+  }
+}
+
+// 导出所有图表
+const exportAllCharts = async () => {
+  if (isExporting.value) return
+
+  isExporting.value = true
+  try {
+    ElMessage.info('正在导出所有图表，请稍候...')
+
+    // 动态导入JSZip和html2canvas
+    const [JSZip, { default: html2canvas }] = await Promise.all([
+      import('jszip').then(m => m.default),
+      import('html2canvas')
+    ])
+    const zip = new JSZip()
+
+    // 获取统计卡片
+    const statsContainer = document.querySelector('.stats-grid')
+    let exportCount = 0
+
+    if (statsContainer) {
+      try {
+        const statsCanvas = await html2canvas(statsContainer, {
+          backgroundColor: '#ffffff',
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          logging: false
+        })
+
+        const base64Data = statsCanvas.toDataURL('image/png').split(',')[1]
+        zip.file('统计卡片.png', base64Data, { base64: true })
+        exportCount++
+      } catch (error) {
+        console.error('导出统计卡片失败:', error)
+      }
+    }
+
+    // 获取所有图表卡片
+    const chartCards = document.querySelectorAll('.chart-container')
+
+    for (const chartCard of chartCards) {
+      try {
+        const chartTitle = chartCard.querySelector('.chart-title')?.textContent || `图表_${exportCount}`
+
+        // 使用html2canvas截取整个图表卡片
+        const cardCanvas = await html2canvas(chartCard, {
+          backgroundColor: '#ffffff',
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          logging: false,
+          width: chartCard.offsetWidth,
+          height: chartCard.offsetHeight
+        })
+
+        // 将canvas转换为base64
+        const base64Data = cardCanvas.toDataURL('image/png').split(',')[1]
+        zip.file(`${chartTitle}.png`, base64Data, { base64: true })
+        exportCount++
+      } catch (error) {
+        console.error('导出图表卡片失败:', error)
+        // 如果html2canvas失败，尝试只导出图表部分
+        try {
+          const chartElement = chartCard.querySelector('.echarts')
+          if (chartElement && chartElement.__echarts_instance__) {
+            const chartTitle = chartCard.querySelector('.chart-title')?.textContent || `图表_${exportCount}`
+            const echartsInstance = chartElement.__echarts_instance__
+
+            const url = echartsInstance.getDataURL({
+              type: 'png',
+              pixelRatio: 2,
+              backgroundColor: '#fff'
+            })
+
+            const base64Data = url.split(',')[1]
+            zip.file(`${chartTitle}_图表.png`, base64Data, { base64: true })
+            exportCount++
+          }
+        } catch (fallbackError) {
+          console.error('回退方案也失败:', fallbackError)
+        }
+      }
+    }
+
+    if (exportCount === 0) {
+      ElMessage.warning('没有找到可导出的图表')
+      return
+    }
+
+    // 生成ZIP文件
+    const content = await zip.generateAsync({ type: 'blob' })
+
+    // 创建下载链接
+    const now = new Date()
+    const fileName = `人事数据看板图表_${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}.zip`
+
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(content)
+    link.download = fileName
+    link.click()
+
+    // 清理URL对象
+    URL.revokeObjectURL(link.href)
+
+    ElMessage.success(`成功导出${exportCount}个图表`)
+  } catch (error) {
+    console.error('导出所有图表失败:', error)
+    ElMessage.error('导出图表失败，请重试')
+  } finally {
+    isExporting.value = false
+  }
 }
 
 // 获取增长率数值
