@@ -109,6 +109,14 @@ export const useDashboardStore = defineStore("dashboard", {
     // 部门统计图表数据
     departmentChartData(state) {
       const data = state.departmentStats;
+      // 如果是数组格式，转换为图表需要的格式
+      if (Array.isArray(data)) {
+        return {
+          labels: data.map(item => item.department),
+          values: data.map(item => item.count),
+        };
+      }
+      // 如果是对象格式，保持原有逻辑
       return {
         labels: Object.keys(data),
         values: Object.values(data),

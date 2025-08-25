@@ -15,7 +15,7 @@ const dbConfig = {
   port: 3306,
   user: 'root',
   password: 'JL123456',
-  database: 'hr',
+  database: 'hr_dashboard',
   waitForConnections: true,
   connectionLimit: 20,
   queueLimit: 0,

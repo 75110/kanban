@@ -7,7 +7,7 @@ const mysql = require('mysql2/promise');
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3002;
 
 // 中间件
 app.use(cors());
@@ -89,30 +89,16 @@ app.post('/api/sysDepartment/list', async (req, res) => {
   try {
     const connection = await pool.getConnection();
 
-    // 首先尝试从规范化表查询
-    let result;
-    try {
-      const [rows] = await connection.execute(`
-        SELECT DISTINCT department as department, department as id
-        FROM sys_department
-        WHERE department IS NOT NULL AND department != ''
-        ORDER BY department
-      `);
-      result = rows;
-    } catch (error) {
-      // 如果规范化表不存在，从employee_position_info直接查询
-      console.log('sys_department表不存在，使用简化查询');
-      const [rows] = await connection.execute(`
-        SELECT DISTINCT department as department, department as id
-        FROM employee_position_info
-        WHERE department IS NOT NULL AND department != ''
-        ORDER BY department
-      `);
-      result = rows;
-    }
+    // 从employee_roster表查询部门字典
+    const [rows] = await connection.execute(`
+      SELECT DISTINCT department as department, department as id
+      FROM employee_roster
+      WHERE department IS NOT NULL AND department != ''
+      ORDER BY department
+    `);
 
     connection.release();
-    res.json(result);
+    res.json(rows);
   } catch (error) {
     console.error('获取部门字典失败:', error);
     res.status(500).json({ error: error.message });
@@ -124,30 +110,16 @@ app.post('/api/sysRegion/list', async (req, res) => {
   try {
     const connection = await pool.getConnection();
 
-    // 首先尝试从规范化表查询
-    let result;
-    try {
-      const [rows] = await connection.execute(`
-        SELECT DISTINCT region as region, region as id
-        FROM sys_region
-        WHERE region IS NOT NULL AND region != ''
-        ORDER BY region
-      `);
-      result = rows;
-    } catch (error) {
-      // 如果规范化表不存在，从employee_position_info直接查询
-      console.log('sys_region表不存在，使用简化查询');
-      const [rows] = await connection.execute(`
-        SELECT DISTINCT region as region, region as id
-        FROM employee_position_info
-        WHERE region IS NOT NULL AND region != ''
-        ORDER BY region
-      `);
-      result = rows;
-    }
+    // 从employee_roster表查询区域字典
+    const [rows] = await connection.execute(`
+      SELECT DISTINCT region as region, region as id
+      FROM employee_roster
+      WHERE region IS NOT NULL AND region != ''
+      ORDER BY region
+    `);
 
     connection.release();
-    res.json(result);
+    res.json(rows);
   } catch (error) {
     console.error('获取区域字典失败:', error);
     res.status(500).json({ error: error.message });
@@ -159,30 +131,16 @@ app.post('/api/sysPosition/list', async (req, res) => {
   try {
     const connection = await pool.getConnection();
 
-    // 首先尝试从规范化表查询
-    let result;
-    try {
-      const [rows] = await connection.execute(`
-        SELECT DISTINCT position as position, position as id
-        FROM sys_position
-        WHERE position IS NOT NULL AND position != ''
-        ORDER BY position
-      `);
-      result = rows;
-    } catch (error) {
-      // 如果规范化表不存在，从employee_position_info直接查询
-      console.log('sys_position表不存在，使用简化查询');
-      const [rows] = await connection.execute(`
-        SELECT DISTINCT position as position, position as id
-        FROM employee_position_info
-        WHERE position IS NOT NULL AND position != ''
-        ORDER BY position
-      `);
-      result = rows;
-    }
+    // 从employee_roster表查询岗位字典
+    const [rows] = await connection.execute(`
+      SELECT DISTINCT position as position, position as id
+      FROM employee_roster
+      WHERE position IS NOT NULL AND position != ''
+      ORDER BY position
+    `);
 
     connection.release();
-    res.json(result);
+    res.json(rows);
   } catch (error) {
     console.error('获取岗位字典失败:', error);
     res.status(500).json({ error: error.message });

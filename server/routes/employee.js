@@ -72,36 +72,32 @@ router.get('/roster', async (req, res) => {
       let queryParams = [];
 
       if (name && name.trim()) {
-        whereConditions.push('ebi.name LIKE ?');
+        whereConditions.push('er.name LIKE ?');
         queryParams.push(`%${name.trim()}%`);
       }
 
       if (department && department.trim()) {
-        whereConditions.push('sd.department LIKE ?');
+        whereConditions.push('er.department LIKE ?');
         queryParams.push(`%${department.trim()}%`);
       }
 
       if (position && position.trim()) {
-        whereConditions.push('sp.position LIKE ?');
+        whereConditions.push('er.position LIKE ?');
         queryParams.push(`%${position.trim()}%`);
       }
 
       if (region && region.trim()) {
-        whereConditions.push('sr.region LIKE ?');
+        whereConditions.push('er.region LIKE ?');
         queryParams.push(`%${region.trim()}%`);
       }
 
-      const whereClause = whereConditions.length > 0 ? 'AND ' + whereConditions.join(' AND ') : '';
+      const whereClause = whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : '';
 
       // 获取总数 - 带搜索条件
       const countSql = `
         SELECT COUNT(*) as total
-        FROM employee_basic_info ebi
-        JOIN employee_position_info epi ON ebi.id = epi.employee_id
-        LEFT JOIN sys_region sr ON epi.region_id = sr.id
-        LEFT JOIN sys_department sd ON epi.department_id = sd.id
-        LEFT JOIN sys_position sp ON epi.position_id = sp.id
-        WHERE 1=1 ${whereClause}
+        FROM employee_roster er
+        ${whereClause}
       `;
 
       console.log('统计SQL:', countSql);
@@ -115,49 +111,49 @@ router.get('/roster', async (req, res) => {
       const offset = (page - 1) * pageSize;
       const dataSql = `
         SELECT
-          ebi.id,
-          ebi.name,
-          ebi.gender,
-          ebi.birth_date,
-          ebi.native_place as hometown,
-          ebi.id_number as id_card_number,
-          ebi.id_address as id_card_address,
-          ebi.current_address,
-          ebi.phone_number as personal_contact,
-          ebi.emergency_contact_name,
-          ebi.emergency_contact_phone,
-          ebi.bank_account as bank_card_number,
-          ebi.bank_branch as bank_branch_info,
-          ebi.graduation_school,
-          ebi.major,
-          ebi.graduation_date,
-          ebi.interviewer_name,
-          sr.region,
-          sd.department,
-          sp.position,
-          se.education,
-          sem.education_mode as education_method,
-          sps.political_status,
-          sms.marital_status,
-          epi.entry_date,
-          epi.employee_type,
-          epi.insurance_type,
-          epi.actual_regularization_date,
-          epi.contract_end_date,
-          epi.remarks,
-          TIMESTAMPDIFF(MONTH, epi.entry_date, CURDATE()) as work_age_months,
-          TIMESTAMPDIFF(YEAR, ebi.birth_date, CURDATE()) as age
-        FROM employee_basic_info ebi
-        JOIN employee_position_info epi ON ebi.id = epi.employee_id
-        LEFT JOIN sys_region sr ON epi.region_id = sr.id
-        LEFT JOIN sys_department sd ON epi.department_id = sd.id
-        LEFT JOIN sys_position sp ON epi.position_id = sp.id
-        LEFT JOIN sys_education se ON ebi.education_id = se.id
-        LEFT JOIN sys_education_mode sem ON ebi.education_mode_id = sem.id
-        LEFT JOIN sys_political_status sps ON ebi.political_status_id = sps.id
-        LEFT JOIN sys_marital_status sms ON ebi.marital_status_id = sms.id
-        WHERE 1=1 ${whereClause}
-        ORDER BY epi.entry_date DESC
+          sequence_number,
+          region,
+          department,
+          position,
+          name,
+          gender,
+          ethnicity,
+          political_status,
+          employee_type,
+          insurance_type,
+          birth_date,
+          birthday,
+          entry_date,
+          actual_regularization_date,
+          remarks,
+          contract_end_date,
+          work_age_months,
+          id_card_number,
+          id_card_address,
+          age,
+          hometown,
+          graduation_school,
+          major,
+          education,
+          education_method,
+          graduation_date,
+          interviewer_name,
+          marital_status,
+          current_address,
+          personal_contact,
+          emergency_contact_name,
+          emergency_contact_phone,
+          bank_card_number,
+          bank_branch_info,
+          labor_relation_affiliation,
+          social_insurance_affiliation,
+          non_compete_agreement,
+          confidentiality_agreement,
+          remarks1,
+          remarks2
+        FROM employee_roster er
+        ${whereClause}
+        ORDER BY entry_date DESC
         LIMIT ${parseInt(pageSize)} OFFSET ${parseInt(offset)}
       `;
 
@@ -196,7 +192,7 @@ router.get('/roster', async (req, res) => {
           contract_end_date: formatDate(row.contract_end_date),
 
           // 基本信息转换
-          gender: row.gender === 'M' ? '男' : (row.gender === 'F' ? '女' : '其他'),
+          gender: row.gender || '未知',
           region: row.region || '未知',
           department: row.department || '未知',
           position: row.position || '未知',
