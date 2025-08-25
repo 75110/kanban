@@ -98,55 +98,67 @@
 
     <!-- 总数据看板内容 -->
     <div v-if="activeTab === 'overview'" class="overview-content">
-      <!-- 统计卡片 - 新布局 -->
-      <div class="dashboard-layout">
-        <!-- 第一行：4个主要指标卡片 -->
-        <div class="stats-main-row" :class="{ 'loading': isRefreshing }">
-          <StatCard
-            title="在职人数"
-            :value="dashboardStore.stats.totalEmployees || 0"
-            type="primary"
-            :growth="getGrowthRate('totalEmployees')"
-            :growth-type="getGrowthType()"
-          />
+      <!-- 整体布局：左侧统计卡片和饼图，右侧高条形图 -->
+      <div class="dashboard-main-layout">
+        <!-- 左侧区域：统计卡片 + 饼图 -->
+        <div class="dashboard-left-section">
+          <!-- 统计卡片区域 -->
+          <div class="stats-section">
+            <!-- 第一行：4个主要指标卡片 -->
+            <div class="stats-main-row" :class="{ 'loading': isRefreshing }">
+              <StatCard
+                title="在职人数"
+                :value="dashboardStore.stats.totalEmployees || 0"
+                type="primary"
+                :growth="getGrowthRate('totalEmployees')"
+                :growth-type="getGrowthType()"
+              />
 
-          <StatCard title="入职人数" :value="dashboardStore.stats.newEmployees || 0" type="success"
-            :growth="getGrowthRate('newEmployees')" :growth-type="getGrowthType()" />
+              <StatCard title="入职人数" :value="dashboardStore.stats.newEmployees || 0" type="success"
+                :growth="getGrowthRate('newEmployees')" :growth-type="getGrowthType()" />
 
-          <StatCard title="离职人数" :value="dashboardStore.stats.resignedEmployees || 0" type="warning"
-            :growth="getGrowthRate('resignedEmployees')" :growth-type="getGrowthType()" />
+              <StatCard title="离职人数" :value="dashboardStore.stats.resignedEmployees || 0" type="warning"
+                :growth="getGrowthRate('resignedEmployees')" :growth-type="getGrowthType()" />
 
-          <StatCard
-            title="异动人数"
-            :value="dashboardStore.stats.transferEmployees || 0"
-            type="danger"
-            :growth="getGrowthRate('transferEmployees')"
-            :growth-type="getGrowthType()"
-          />
-        </div>
+              <StatCard
+                title="异动人数"
+                :value="dashboardStore.stats.transferEmployees || 0"
+                type="danger"
+                :growth="getGrowthRate('transferEmployees')"
+                :growth-type="getGrowthType()"
+              />
+            </div>
 
-        <!-- 第二行：2个比率指标卡片 -->
-        <div class="stats-secondary-row" :class="{ 'loading': isRefreshing }">
-          <StatCard
-            title="综合异动率"
-            :value="parseFloat(calculateChangeRate().toFixed(2))"
-            type="info"
-            :growth="getGrowthRate('changeRate')"
-            :growth-type="getGrowthType()"
-            suffix="%"
-          />
+            <!-- 第二行：4个比率指标卡片 -->
+            <div class="stats-secondary-row" :class="{ 'loading': isRefreshing }">
+              <StatCard
+                title="新进率"
+                :value="parseFloat(calculateNewEmployeeRate().toFixed(2))"
+                type="success"
+                :growth="getGrowthRate('newEmployeeRate')"
+                :growth-type="getGrowthType()"
+                suffix="%"
+              />
 
-          <StatCard title="离职率" :value="parseFloat(calculateResignationRate().toFixed(2))" type="warning"
-            :growth="getGrowthRate('resignationRate')" :growth-type="getGrowthType()" suffix="%" />
-        </div>
-      </div>
+              <StatCard
+                title="综合异动率"
+                :value="parseFloat(calculateChangeRate().toFixed(2))"
+                type="info"
+                :growth="getGrowthRate('changeRate')"
+                :growth-type="getGrowthType()"
+                suffix="%"
+              />
 
-      <!-- 图表区域 - 新布局 -->
-      <div class="charts-layout">
-        <!-- 主要图表区域：左侧两个饼图，右侧一个高条形图 -->
-        <div class="charts-main-section">
-          <!-- 左侧饼图区域 -->
-          <div class="charts-left-section">
+              <StatCard title="离职率" :value="parseFloat(calculateResignationRate().toFixed(2))" type="warning"
+                :growth="getGrowthRate('resignationRate')" :growth-type="getGrowthType()" suffix="%" />
+
+              <!-- 占位卡片，保持布局一致 -->
+              <div class="placeholder-card"></div>
+            </div>
+          </div>
+
+          <!-- 饼图区域 -->
+          <div class="charts-pie-section">
             <ChartCard
               v-if="dashboardStore.workAgeChartData"
               title="司龄分布情况"
@@ -167,39 +179,34 @@
               @chart-click="handleChartClick"
             />
           </div>
-
-          <!-- 右侧条形图区域 -->
-          <div class="charts-right-section">
-            <ChartCard
-              v-if="dashboardStore.departmentChartData"
-              title="各部门人员异动"
-              type="bar"
-              :horizontal="true"
-              chart-type="department"
-              :data="dashboardStore.departmentChartData"
-              :loading="dashboardStore.loading.department"
-              @chart-click="handleChartClick"
-            />
-          </div>
         </div>
 
-        <!-- 第二行：各部门在职人数详细图表 -->
-        <div class="charts-detail-row">
-          <ChartCard v-if="dashboardStore.departmentChartData" title="各部门在职人数" type="bar" chart-type="department"
-            :data="dashboardStore.departmentChartData" :loading="dashboardStore.loading.department"
-            @chart-click="handleChartClick" />
-        <!-- 下方行：各部门在职人数详细图表 -->
-        <div class="charts-bottom-row">
+        <!-- 右侧条形图区域 -->
+        <div class="dashboard-right-section">
           <ChartCard
-            v-if="dashboardStore.departmentChartData"
-            title="各部门在职人数"
+            v-if="departmentTransferData"
+            title="各部门人员异动"
             type="bar"
-            chart-type="department"
-            :data="dashboardStore.departmentChartData"
-            :loading="dashboardStore.loading.department"
+            :horizontal="true"
+            chart-type="departmentTransfer"
+            :data="departmentTransferData"
+            :loading="departmentTransferLoading"
             @chart-click="handleChartClick"
           />
         </div>
+      </div>
+
+      <!-- 底部图表：各部门在职人数 -->
+      <div class="charts-bottom-section">
+        <ChartCard
+          v-if="dashboardStore.departmentChartData"
+          title="各部门在职人数"
+          type="bar"
+          chart-type="department"
+          :data="dashboardStore.departmentChartData"
+          :loading="dashboardStore.loading.department"
+          @chart-click="handleChartClick"
+        />
       </div>
     </div>
 
@@ -280,7 +287,7 @@
         </div>
       </div>
     </div>
-  </div>
+    </div>
 </template>
 
 <script setup>
@@ -333,6 +340,9 @@ const turnoverTenureData = shallowRef(null)
 // 总览图表数据
 const overallChartData = ref(null)
 
+// 部门异动数据
+const departmentTransferData = shallowRef(null)
+
 // 人才流失加载状态
 const turnoverLoading = ref({
   department: false,
@@ -341,6 +351,9 @@ const turnoverLoading = ref({
   position: false,
   tenure: false
 })
+
+// 部门异动加载状态
+const departmentTransferLoading = ref(false)
 
 // 计算异动率
 const calculateChangeRate = () => {
@@ -884,7 +897,14 @@ const getGrowthType = () => {
 // 处理搜索
 const handleSearch = async () => {
   try {
-    await dashboardStore.refreshAll()
+    if (activeTab.value === 'overview') {
+      await Promise.all([
+        dashboardStore.refreshAll(),
+        fetchDepartmentTransferData()
+      ])
+    } else if (activeTab.value === 'turnover') {
+      await loadTurnoverData()
+    }
     ElMessage.success('数据刷新成功')
   } catch (error) {
     ElMessage.error('数据刷新失败')
@@ -929,7 +949,12 @@ const clearChartFilters = () => {
 // 清除特定图表筛选
 const clearSpecificChartFilter = (type) => {
   dashboardStore.chartFilters[type] = ''
-  dashboardStore.refreshAll()
+  if (activeTab.value === 'overview') {
+    Promise.all([
+      dashboardStore.refreshAll(),
+      fetchDepartmentTransferData()
+    ])
+  }
   // ElMessage.success(`已清除${getFilterTypeName(type)}筛选`)
 }
 
@@ -1237,6 +1262,22 @@ const clearAllTurnoverFilters = () => {
   loadTurnoverData()
 }
 
+// 获取部门异动数据
+const fetchDepartmentTransferData = async () => {
+  departmentTransferLoading.value = true
+  try {
+    const data = await dashboardApi.getDepartmentTransferStats(dashboardStore.currentFilters)
+    if (data) {
+      departmentTransferData.value = data
+    }
+  } catch (error) {
+    console.error('获取部门异动数据失败:', error)
+    ElMessage.error('获取部门异动数据失败')
+  } finally {
+    departmentTransferLoading.value = false
+  }
+}
+
 // 处理人才流失分析图表点击事件
 const handleTurnoverChartClick = (params) => {
   console.log('人才流失图表点击:', params)
@@ -1304,7 +1345,14 @@ const handleTurnoverChartClick = (params) => {
 // 刷新数据
 const refreshData = async () => {
   try {
-    await dashboardStore.refreshAll()
+    if (activeTab.value === 'overview') {
+      await Promise.all([
+        dashboardStore.refreshAll(),
+        fetchDepartmentTransferData()
+      ])
+    } else if (activeTab.value === 'turnover') {
+      await loadTurnoverData()
+    }
     ElMessage.success('数据刷新成功')
   } catch (error) {
     ElMessage.error('数据刷新失败')
@@ -1327,7 +1375,10 @@ watch(
         try {
           isRefreshing.value = true
           if (activeTab.value === 'overview') {
-            await dashboardStore.refreshAll()
+            await Promise.all([
+              dashboardStore.refreshAll(),
+              fetchDepartmentTransferData()
+            ])
           } else if (activeTab.value === 'turnover') {
             await loadTurnoverData()
           }
@@ -1350,7 +1401,10 @@ onMounted(async () => {
   try {
     await dashboardStore.fetchFilterOptions()
     if (activeTab.value === 'overview') {
-      await dashboardStore.refreshAll()
+      await Promise.all([
+        dashboardStore.refreshAll(),
+        fetchDepartmentTransferData()
+      ])
     } else if (activeTab.value === 'turnover') {
       await loadTurnoverData()
     }
@@ -1601,10 +1655,9 @@ onMounted(async () => {
 
 .stats-secondary-row {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 24px;
   margin-bottom: 40px;
-  max-width: 600px;
   position: relative;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -1649,34 +1702,64 @@ onMounted(async () => {
   box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
 }
 
-/* 主要图表区域：左侧两个饼图，右侧一个高条形图 */
-.charts-main-section {
+/* 整体主布局：左侧统计卡片+饼图，右侧高条形图 */
+.dashboard-main-layout {
   display: grid;
   grid-template-columns: 2fr 1fr;
   gap: 32px;
-  margin-bottom: 32px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* 左侧饼图区域 */
-.charts-left-section {
+/* 左侧区域：统计卡片 + 饼图 */
+.dashboard-left-section {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+/* 统计卡片区域 */
+.stats-section {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* 饼图区域 */
+.charts-pie-section {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 32px;
 }
 
-.charts-left-section > * {
+.charts-pie-section > * {
   height: 400px;
 }
 
-/* 右侧条形图区域 - 高度与左侧整体对齐 */
-.charts-right-section {
+/* 右侧条形图区域 - 高度覆盖整个左侧区域 */
+.dashboard-right-section {
   display: flex;
 }
 
-.charts-right-section > * {
-  height: 832px; /* 400px * 2 + 32px gap */
+.dashboard-right-section > * {
   width: 100%;
+  /* 动态计算高度：统计卡片区域 + 间隙 + 饼图区域 */
+  min-height: calc(100% - 0px);
+}
+
+/* 底部图表区域 */
+.charts-bottom-section {
+  margin-top: 32px;
+}
+
+.charts-bottom-section > * {
+  height: 400px;
+}
+
+/* 占位卡片样式 */
+.placeholder-card {
+  height: 140px;
+  border-radius: 12px;
+  background: transparent;
 }
 
 /* 底部图表行：全宽条形图 */
@@ -1736,18 +1819,18 @@ onMounted(async () => {
     max-width: 400px;
   }
 
-  .charts-main-section {
+  .dashboard-main-layout {
     grid-template-columns: 1fr;
     gap: 20px;
   }
 
-  .charts-left-section {
+  .charts-pie-section {
     grid-template-columns: repeat(2, 1fr);
     gap: 20px;
   }
 
-  .charts-right-section > * {
-    height: 400px;
+  .dashboard-right-section > * {
+    min-height: 400px;
   }
 
   .charts-main-row {
@@ -1767,18 +1850,18 @@ onMounted(async () => {
     max-width: 100%;
   }
 
-  .charts-main-section {
+  .dashboard-main-layout {
     grid-template-columns: 1fr;
     gap: 20px;
   }
 
-  .charts-left-section {
+  .charts-pie-section {
     grid-template-columns: 1fr;
     gap: 20px;
   }
 
-  .charts-right-section > * {
-    height: 400px;
+  .dashboard-right-section > * {
+    min-height: 400px;
   }
 }
 
@@ -1803,18 +1886,18 @@ onMounted(async () => {
     max-width: 100%;
   }
 
-  .charts-main-section {
+  .dashboard-main-layout {
     grid-template-columns: 1fr;
     gap: 16px;
   }
 
-  .charts-left-section {
+  .charts-pie-section {
     grid-template-columns: 1fr;
     gap: 16px;
   }
 
-  .charts-right-section > * {
-    height: 400px;
+  .dashboard-right-section > * {
+    min-height: 400px;
   }
 
   .charts-main-row {

@@ -1218,4 +1218,46 @@ router.get('/turnover-tenure-distribution', async (req, res) => {
   }
 });
 
+/**
+ * 获取各部门人员异动统计
+ * 注意：由于当前数据库中没有人员异动数据，这里返回模拟数据用于演示
+ */
+router.get('/department-transfer-stats', async (req, res) => {
+  try {
+    const { region, department, year, month } = req.query;
+
+    // 由于当前数据库中没有人员异动数据，返回模拟数据
+    // 实际项目中应该查询 personnel_changes 表或相关异动数据表
+    const mockData = {
+      labels: [
+        '技术部', '产品部', '市场部', '销售部', '人事部',
+        '财务部', '运营部', '设计部', '客服部', '行政部',
+        '法务部', '采购部', '质量部', '研发部', '商务部'
+      ],
+      values: [
+        25, 18, 12, 15, 8,
+        6, 10, 9, 7, 5,
+        3, 4, 6, 20, 8
+      ]
+    };
+
+    // 如果有部门筛选，只返回该部门的数据
+    if (department) {
+      const index = mockData.labels.indexOf(department);
+      if (index !== -1) {
+        res.json({
+          labels: [department],
+          values: [mockData.values[index]]
+        });
+        return;
+      }
+    }
+
+    res.json(mockData);
+  } catch (error) {
+    console.error('获取各部门人员异动统计失败:', error);
+    res.status(500).json({ error: '获取各部门人员异动统计失败' });
+  }
+});
+
 module.exports = router;

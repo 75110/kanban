@@ -105,6 +105,11 @@ export const dashboardApi = {
   getTurnoverTenureDistribution(params) {
     return api.get("/dashboard/turnover-tenure-distribution", { params });
   },
+
+  // 获取各部门人员异动统计
+  getDepartmentTransferStats(params) {
+    return api.get("/dashboard/department-transfer-stats", { params });
+  },
 };
 
 // 员工API

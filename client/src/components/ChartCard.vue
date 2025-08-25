@@ -922,10 +922,10 @@ const chartOption = computed(() => {
         hideDelay: 100
       },
       grid: {
-        left: props.horizontal ? '15%' : '3%',
-        right: props.horizontal ? '8%' : '3%',
-        top: '10%',
-        bottom: props.horizontal ? '15%' : (labels.length > 8 ? '25%' : '15%'),
+        left: props.horizontal ? '5%' : '5%',
+        right: props.horizontal ? '5%' : '5%',
+        top: '5%',
+        bottom: props.horizontal ? '8%' : (labels.length > 8 ? '15%' : '8%'),
         containLabel: true
       },
       dataZoom: labels.length > 10 ? [
@@ -1081,7 +1081,7 @@ const testClick = (event) => {
 .chart-container {
   background: white;
   border-radius: 8px;
-  padding: 24px;
+  padding: 16px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   height: 100%;
   display: flex;
@@ -1099,7 +1099,7 @@ const testClick = (event) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 12px;
 }
 
 .chart-title {
