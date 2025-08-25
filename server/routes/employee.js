@@ -642,7 +642,7 @@ router.get('/roster/export', async (req, res) => {
         合同终止日期: row.contract_end_date ? new Date(row.contract_end_date).toISOString().split('T')[0] : '',
         '工龄（月）': row.work_age_months || 0,
         身份证号: row.id_card_number || '',
-        身份证地址: row.id_card_address || '',
+        身份证地址: row.id_card_address?.replace(/[\r\n]/g, '') || '',
         年龄: row.age || 0,
         籍贯: row.hometown || '',
         毕业院校: row.graduation_school || '',

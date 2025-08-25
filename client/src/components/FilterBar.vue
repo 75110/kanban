@@ -22,7 +22,7 @@
         >
           <el-option
             v-for="region in filterOptions.organizationRegions"
-            :key="region"
+            :key="region.id"
             :label="region"
             :value="region"
           />
@@ -42,7 +42,7 @@
             v-for="region in filterOptions.regions"
             :key="region.id"
             :label="region.region"
-            :value="region.region"
+            :value="region.id"
           />
         </el-select>
       </div>
@@ -60,7 +60,7 @@
             v-for="dept in filterOptions.departments"
             :key="dept.id"
             :label="dept.department"
-            :value="dept.department"
+            :value="dept.id"
           />
         </el-select>
       </div>

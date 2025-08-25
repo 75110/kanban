@@ -108,9 +108,10 @@ export const useDashboardStore = defineStore("dashboard", {
 
     // 部门统计图表数据
     departmentChartData(state) {
+      const data = state.departmentStats;
       return {
-        labels: state.departmentStats.map((item) => item.department),
-        values: state.departmentStats.map((item) => item.count),
+        labels: Object.keys(data),
+        values: Object.values(data),
       };
     },
   },
