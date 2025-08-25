@@ -149,6 +149,10 @@ const props = defineProps({
     default: 'pie',
     validator: (value) => ['pie', 'bar', 'bubble', 'heatmap'].includes(value)
   },
+  horizontal: {
+    type: Boolean,
+    default: false
+  },
   data: {
     type: Object,
     default: () => ({ labels: [], values: [] })
@@ -918,33 +922,34 @@ const chartOption = computed(() => {
         hideDelay: 100
       },
       grid: {
-        left: '3%',
-        right: '3%',
+        left: props.horizontal ? '15%' : '3%',
+        right: props.horizontal ? '8%' : '3%',
         top: '10%',
-        bottom: labels.length > 8 ? '25%' : '15%',
+        bottom: props.horizontal ? '15%' : (labels.length > 8 ? '25%' : '15%'),
         containLabel: true
       },
       dataZoom: labels.length > 10 ? [
         {
           type: 'slider',
           show: true,
-          xAxisIndex: [0],
+          [props.horizontal ? 'yAxisIndex' : 'xAxisIndex']: [0],
           start: 0,
           end: 50
         },
         {
           type: 'inside',
-          xAxisIndex: [0],
+          [props.horizontal ? 'yAxisIndex' : 'xAxisIndex']: [0],
           start: 0,
           end: 50
         }
       ] : [],
       xAxis: {
-        type: 'category',
-        data: labels || [],
+        type: props.horizontal ? 'value' : 'category',
+        data: props.horizontal ? undefined : (labels || []),
+        min: props.horizontal ? 0 : undefined,
         axisLabel: {
-          interval: 0,
-          rotate: (labels && labels.length > 8) ? 45 : 0,
+          interval: props.horizontal ? undefined : 0,
+          rotate: (props.horizontal || (labels && labels.length <= 8)) ? 0 : 45,
           fontSize: 12,
           color: '#666'
         },
@@ -953,11 +958,17 @@ const chartOption = computed(() => {
             color: '#e6e6e6'
           }
         },
-        boundaryGap: true
+        boundaryGap: props.horizontal ? false : true,
+        splitLine: props.horizontal ? {
+          lineStyle: {
+            color: '#f0f0f0'
+          }
+        } : undefined
       },
       yAxis: {
-        type: 'value',
-        min: 0,
+        type: props.horizontal ? 'category' : 'value',
+        data: props.horizontal ? (labels || []) : undefined,
+        min: props.horizontal ? undefined : 0,
         axisLabel: {
           fontSize: 12,
           color: '#666'
@@ -967,7 +978,7 @@ const chartOption = computed(() => {
             color: '#e6e6e6'
           }
         },
-        splitLine: {
+        splitLine: props.horizontal ? undefined : {
           lineStyle: {
             color: '#f0f0f0'
           }
@@ -980,13 +991,13 @@ const chartOption = computed(() => {
           data: values,
           barWidth: '60%',
           itemStyle: {
-            borderRadius: [4, 4, 0, 0],
+            borderRadius: props.horizontal ? [0, 4, 4, 0] : [4, 4, 0, 0],
             color: {
               type: 'linear',
               x: 0,
               y: 0,
-              x2: 0,
-              y2: 1,
+              x2: props.horizontal ? 1 : 0,
+              y2: props.horizontal ? 0 : 1,
               colorStops: [
                 { offset: 0, color: '#1890ff' },
                 { offset: 1, color: '#69c0ff' }
@@ -999,8 +1010,8 @@ const chartOption = computed(() => {
                 type: 'linear',
                 x: 0,
                 y: 0,
-                x2: 0,
-                y2: 1,
+                x2: props.horizontal ? 1 : 0,
+                y2: props.horizontal ? 0 : 1,
                 colorStops: [
                   { offset: 0, color: '#096dd9' },
                   { offset: 1, color: '#40a9ff' }
@@ -1010,7 +1021,7 @@ const chartOption = computed(() => {
           },
           label: {
             show: values.length <= 10,
-            position: 'top',
+            position: props.horizontal ? 'right' : 'top',
             fontSize: 11,
             color: '#666'
           }

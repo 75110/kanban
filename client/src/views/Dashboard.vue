@@ -98,10 +98,10 @@
 
     <!-- 总数据看板内容 -->
     <div v-if="activeTab === 'overview'" class="overview-content">
-      <!-- 统计卡片 - 专业布局 -->
+      <!-- 统计卡片 - 新布局 -->
       <div class="dashboard-layout">
-        <!-- 主要指标卡片 -->
-        <div class="stats-grid" :class="{ 'loading': isRefreshing }">
+        <!-- 第一行：4个主要指标卡片 -->
+        <div class="stats-main-row" :class="{ 'loading': isRefreshing }">
           <StatCard
             title="在职人数"
             :value="dashboardStore.stats.totalEmployees || 0"
@@ -133,21 +133,15 @@
             :growth="getGrowthRate('transferEmployees')"
             :growth-type="getGrowthType()"
           />
+        </div>
 
+        <!-- 第二行：2个比率指标卡片 -->
+        <div class="stats-secondary-row" :class="{ 'loading': isRefreshing }">
           <StatCard
             title="综合异动率"
             :value="parseFloat(calculateChangeRate().toFixed(2))"
             type="info"
             :growth="getGrowthRate('changeRate')"
-            :growth-type="getGrowthType()"
-            suffix="%"
-          />
-
-          <StatCard
-            title="新进率"
-            :value="parseFloat(calculateNewEmployeeRate().toFixed(2))"
-            type="success"
-            :growth="getGrowthRate('newEmployeeRate')"
             :growth-type="getGrowthType()"
             suffix="%"
           />
@@ -165,40 +159,48 @@
 
       <!-- 图表区域 - 新布局 -->
       <div class="charts-layout">
-        <!-- 第一行：3个图表 -->
-        <div class="charts-main-row">
-          <ChartCard
-            v-if="dashboardStore.workAgeChartData"
-            title="司龄分布情况"
-            type="pie"
-            chart-type="workAge"
-            :data="dashboardStore.workAgeChartData"
-            :loading="dashboardStore.loading.workAge"
-            @chart-click="handleChartClick"
-          />
-          <ChartCard
-            v-if="dashboardStore.educationChartData"
-            title="学历分布"
-            type="pie"
-            pie-style="solid"
-            chart-type="education"
-            :data="dashboardStore.educationChartData"
-            :loading="dashboardStore.loading.education"
-            @chart-click="handleChartClick"
-          />
-          <ChartCard
-            v-if="dashboardStore.departmentChartData"
-            title="各部门员异动"
-            type="bar"
-            chart-type="department"
-            :data="dashboardStore.departmentChartData"
-            :loading="dashboardStore.loading.department"
-            @chart-click="handleChartClick"
-          />
+        <!-- 主要图表区域：左侧两个饼图，右侧一个高条形图 -->
+        <div class="charts-main-section">
+          <!-- 左侧饼图区域 -->
+          <div class="charts-left-section">
+            <ChartCard
+              v-if="dashboardStore.workAgeChartData"
+              title="司龄分布情况"
+              type="pie"
+              chart-type="workAge"
+              :data="dashboardStore.workAgeChartData"
+              :loading="dashboardStore.loading.workAge"
+              @chart-click="handleChartClick"
+            />
+            <ChartCard
+              v-if="dashboardStore.educationChartData"
+              title="学历分布"
+              type="pie"
+              pie-style="solid"
+              chart-type="education"
+              :data="dashboardStore.educationChartData"
+              :loading="dashboardStore.loading.education"
+              @chart-click="handleChartClick"
+            />
+          </div>
+
+          <!-- 右侧条形图区域 -->
+          <div class="charts-right-section">
+            <ChartCard
+              v-if="dashboardStore.departmentChartData"
+              title="各部门人员异动"
+              type="bar"
+              :horizontal="true"
+              chart-type="department"
+              :data="dashboardStore.departmentChartData"
+              :loading="dashboardStore.loading.department"
+              @chart-click="handleChartClick"
+            />
+          </div>
         </div>
 
-        <!-- 第二行：各部门在职人数详细图表 -->
-        <div class="charts-detail-row">
+        <!-- 下方行：各部门在职人数详细图表 -->
+        <div class="charts-bottom-row">
           <ChartCard
             v-if="dashboardStore.departmentChartData"
             title="各部门在职人数"
@@ -1658,7 +1660,33 @@ onMounted(async () => {
   margin-bottom: 32px;
 }
 
-/* 统计卡片网格 */
+/* 统计卡片网格 - 新布局 */
+.stats-main-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+  margin-bottom: 24px;
+  position: relative;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.stats-secondary-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+  margin-bottom: 40px;
+  max-width: 600px;
+  position: relative;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.stats-main-row.loading,
+.stats-secondary-row.loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* 保持原有的 stats-grid 样式以兼容其他页面 */
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -1692,6 +1720,48 @@ onMounted(async () => {
   box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
 }
 
+/* 主要图表区域：左侧两个饼图，右侧一个高条形图 */
+.charts-main-section {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 32px;
+  margin-bottom: 32px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 左侧饼图区域 */
+.charts-left-section {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+}
+
+.charts-left-section > * {
+  height: 400px;
+}
+
+/* 右侧条形图区域 - 高度与左侧整体对齐 */
+.charts-right-section {
+  display: flex;
+}
+
+.charts-right-section > * {
+  height: 832px; /* 400px * 2 + 32px gap */
+  width: 100%;
+}
+
+/* 底部图表行：全宽条形图 */
+.charts-bottom-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 32px;
+}
+
+.charts-bottom-row > * {
+  height: 400px;
+}
+
+/* 保持原有样式以兼容其他页面 */
 .charts-main-row {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1716,46 +1786,70 @@ onMounted(async () => {
 
 /* 响应式设计 */
 @media (max-width: 1600px) {
-  .main-stats-row {
-    grid-template-columns: repeat(5, 1fr);
-    gap: 14px;
+  .stats-main-row {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+  }
+
+  .stats-secondary-row {
+    max-width: 500px;
   }
 }
 
 @media (max-width: 1400px) {
-  .main-stats-row {
-    grid-template-columns: repeat(4, 1fr);
-    gap: 14px;
+  .stats-main-row {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+
+  .stats-secondary-row {
+    grid-template-columns: repeat(2, 1fr);
+    max-width: 400px;
+  }
+
+  .charts-main-section {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .charts-left-section {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+  }
+
+  .charts-right-section > * {
+    height: 400px;
   }
 
   .charts-main-row {
     grid-template-columns: repeat(2, 1fr);
     gap: 20px;
   }
-
-  .secondary-stats-row {
-    max-width: 700px;
-  }
 }
 
 @media (max-width: 1200px) {
-  .main-stats-row {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
-  }
-
-  .secondary-stats-row {
+  .stats-main-row {
     grid-template-columns: repeat(2, 1fr);
-    max-width: 500px;
+    gap: 16px;
   }
 
-  .main-stat-card {
-    padding: 20px 12px;
-    min-height: 110px;
+  .stats-secondary-row {
+    grid-template-columns: repeat(2, 1fr);
+    max-width: 100%;
   }
 
-  .stat-number {
-    font-size: 28px;
+  .charts-main-section {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .charts-left-section {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .charts-right-section > * {
+    height: 400px;
   }
 }
 
@@ -1770,25 +1864,35 @@ onMounted(async () => {
     gap: 16px;
   }
 
-  .main-stats-row {
+  .stats-main-row {
     grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
+    gap: 12px;
   }
 
-  .secondary-stats-row {
+  .stats-secondary-row {
     grid-template-columns: 1fr;
     max-width: 100%;
+  }
+
+  .charts-main-section {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .charts-left-section {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .charts-right-section > * {
+    height: 400px;
   }
 
   .charts-main-row {
     grid-template-columns: 1fr;
     gap: 16px;
   }
-
-  .main-stat-card {
-    padding: 16px 12px;
-    min-height: 100px;
-  }
+}
 
   .secondary-stat-card {
     padding: 16px 12px;
@@ -1851,5 +1955,4 @@ onMounted(async () => {
   .charts-detail-row > * {
     height: 380px;
   }
-}
 </style>
