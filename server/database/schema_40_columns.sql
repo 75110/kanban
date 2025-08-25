@@ -220,14 +220,19 @@ CREATE TABLE IF NOT EXISTS resignation_monitoring (
 
 -- 人员异动明细表 - 英文字段名版本
 CREATE TABLE IF NOT EXISTS personnel_changes (
-  department VARCHAR(100),
-  name VARCHAR(50) NOT NULL,
-  original_position VARCHAR(100),
-  new_position VARCHAR(100),
-  change_date DATE,
-  change_reason VARCHAR(100),
-  remarks TEXT,
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  employee_id VARCHAR(50) COMMENT '员工ID，关联花名册',
+  department VARCHAR(100) COMMENT '部门',
+  name VARCHAR(50) NOT NULL COMMENT '姓名',
+  original_position VARCHAR(100) COMMENT '原岗位',
+  new_position VARCHAR(100) COMMENT '新岗位',
+  change_date DATE COMMENT '异动时间',
+  change_type ENUM('调动', '晋升', '降职') COMMENT '异动原因（调动/晋升/降职）',
+  change_remarks TEXT COMMENT '备注',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_employee_id (employee_id),
   INDEX idx_department (department),
-  INDEX idx_name (name),
-  INDEX idx_change_date (change_date)
+  INDEX idx_change_date (change_date),
+  INDEX idx_name (name)
 ) COMMENT='人员异动明细表-英文字段';

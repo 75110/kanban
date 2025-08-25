@@ -124,6 +124,11 @@ export const employeeApi = {
     return api.get("/employee/roster", { params });
   },
 
+  // 更新员工信息
+  updateRoster(id, params) {
+    return api.put(`/employee/roster/${id}`, params);
+  },
+
   // 导出员工花名册
   exportRoster(params) {
     return api.get("/employee/roster/export", { params });
@@ -134,9 +139,19 @@ export const employeeApi = {
     return api.get("/employee/resignation", { params });
   },
 
+  // 员工离职操作
+  postResignation(params) {
+    return api.post("/employee/resignation", params);
+  },
+
   // 获取人员异动数据
   getChanges(params) {
     return api.get("/employee/changes", { params });
+  },
+
+  // 员工调动操作
+  postTransfer(params) {
+    return api.post("/employee/transfer", params);
   },
 };
 

@@ -111,6 +111,19 @@
           @size-change="handleSizeChange" @current-change="handleCurrentChange" />
       </div>
     </div>
+
+    <!-- 编辑对话框 -->
+    <EmployeeEditDialog
+      v-model:visible="editDialogVisible"
+      :employee-data="currentEmployee"
+      @success="handleEditSuccess"
+    />
+
+    <!-- 新增员工对话框 -->
+    <AddEmployeeDialog
+      v-model:visible="addDialogVisible"
+      @success="handleAddSuccess"
+    />
   </div>
 </template>
 
@@ -120,6 +133,8 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download, Upload, User, Search, Refresh } from '@element-plus/icons-vue'
 import { employeeApi } from '../api'
 import { calculateAge, calculateWorkAge } from '../utils'
+import EmployeeEditDialog from '@/components/EmployeeEditDialog.vue'
+import AddEmployeeDialog from '@/components/AddEmployeeDialog.vue'
 
 // 搜索表单
 const searchForm = reactive({
@@ -209,8 +224,15 @@ const handleCurrentChange = (page) => {
 }
 
 // 新增员工
+const addDialogVisible = ref(false)
+
 const handleAddEmployee = () => {
-  ElMessage.info('新增员工功能开发中...')
+  addDialogVisible.value = true
+}
+
+// 新增成功回调
+const handleAddSuccess = () => {
+  fetchEmployeeData() // 刷新数据
 }
 
 // 导出数据
@@ -295,9 +317,18 @@ const onUploadError = (error) => {
 }
 
 // 编辑员工
+const editDialogVisible = ref(false)
+const currentEmployee = ref({})
+
 const handleEdit = (row) => {
   console.log('编辑员工:', row)
-  ElMessage.info('编辑功能开发中...')
+  currentEmployee.value = { ...row }
+  editDialogVisible.value = true
+}
+
+// 编辑成功回调
+const handleEditSuccess = () => {
+  fetchEmployeeData() // 刷新数据
 }
 
 // 删除员工

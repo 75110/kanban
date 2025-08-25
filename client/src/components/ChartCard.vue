@@ -37,6 +37,7 @@
       <!-- 图表始终存在，避免重新渲染 -->
       <v-chart
         ref="chartRef"
+        :key="chartKey"
         :option="chartOption"
         :update-options="{ notMerge: true, lazyUpdate: false }"
         :init-options="{ devicePixelRatio: 1, renderer: 'canvas' }"
@@ -217,6 +218,7 @@ const handleChartClick = (params) => {
 // 延迟的加载遮罩，避免轻微抖动造成闪一下
 const showLoadingOverlay = ref(false)
 let overlayTimer = null
+const chartKey = ref(0)
 
 // 图表引用
 const chartRef = ref(null)
@@ -292,6 +294,14 @@ watch(() => props.loading, (val) => {
     showLoadingOverlay.value = false
   }
 })
+
+// 监听数据变化，强制重新渲染图表
+watch(() => props.data, (newData, oldData) => {
+  if (newData && oldData && JSON.stringify(newData) !== JSON.stringify(oldData)) {
+    // 通过改变key强制重新渲染图表组件
+    chartKey.value++
+  }
+}, { deep: true })
 
 onBeforeUnmount(() => {
   overlayTimer && clearTimeout(overlayTimer)
@@ -1007,14 +1017,16 @@ const chartOption = computed(() => {
           type: 'slider',
           show: true,
           [props.horizontal ? 'yAxisIndex' : 'xAxisIndex']: [0],
-          start: 0,
-          end: 50
+          start: props.chartType === 'departmentTransfer' ? 50 : 0,
+          end: props.chartType === 'departmentTransfer' ? 100 : 50,
+          top: props.horizontal ? '5%' : undefined,
+          bottom: props.horizontal ? undefined : '5%'
         },
         {
           type: 'inside',
           [props.horizontal ? 'yAxisIndex' : 'xAxisIndex']: [0],
-          start: 0,
-          end: 50
+          start: props.chartType === 'departmentTransfer' ? 50 : 0,
+          end: props.chartType === 'departmentTransfer' ? 100 : 50
         }
       ] : [],
       xAxis: {

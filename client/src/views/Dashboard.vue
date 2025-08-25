@@ -1786,7 +1786,7 @@ onMounted(async () => {
 /* 人才流失分析主布局 */
 .turnover-main-layout {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 3fr 2fr;
   gap: 32px;
   margin-bottom: 32px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);

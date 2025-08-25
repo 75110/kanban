@@ -1159,7 +1159,7 @@ router.get('/department-transfer-stats', async (req, res) => {
          FROM personnel_changes pc
          ${whereClause}
          GROUP BY department
-         ORDER BY count DESC`,
+         ORDER BY count ASC`,
         params
       );
 

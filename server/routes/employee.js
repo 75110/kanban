@@ -363,23 +363,67 @@ router.get('/resignation', async (req, res) => {
 
 /**
  * 获取人员异动明细
- * 注意：新数据库结构中暂时没有异动表，返回空数据
  */
 router.get('/changes', async (req, res) => {
   try {
     const {
       page = 1,
-      pageSize = 20
+      pageSize = 20,
+      department,
+      name
     } = req.query;
 
-    // 新数据库结构中暂时没有异动表，返回空数据
-    res.json({
-      data: [],
-      total: 0,
-      page: parseInt(page),
-      pageSize: parseInt(pageSize),
-      totalPages: 0
-    });
+    console.log('收到人员异动请求:', { page, pageSize, department, name });
+
+    const pool = req.pool;
+    const connection = await pool.getConnection();
+
+    try {
+      let whereConditions = [];
+      let params = [];
+
+      if (department) {
+        whereConditions.push('department LIKE ?');
+        params.push(`%${department}%`);
+      }
+
+      if (name) {
+        whereConditions.push('name LIKE ?');
+        params.push(`%${name}%`);
+      }
+
+      const whereClause = whereConditions.length > 0 ?
+        `WHERE ${whereConditions.join(' AND ')}` : '';
+
+      // 获取总数
+      const countSql = `SELECT COUNT(*) as total FROM personnel_changes ${whereClause}`;
+      const [countResult] = await connection.execute(countSql, params);
+      const total = countResult[0].total;
+
+      // 获取分页数据
+      const offset = (page - 1) * pageSize;
+      const dataSql = `
+        SELECT
+          id, employee_id, department, name, original_position, new_position,
+          change_date, change_type, change_remarks, created_at, updated_at
+        FROM personnel_changes
+        ${whereClause}
+        ORDER BY change_date DESC, created_at DESC
+        LIMIT ? OFFSET ?
+      `;
+
+      const [rows] = await connection.execute(dataSql, [...params, parseInt(pageSize), offset]);
+
+      res.json({
+        data: rows,
+        total,
+        page: parseInt(page),
+        pageSize: parseInt(pageSize),
+        totalPages: Math.ceil(total / pageSize)
+      });
+    } finally {
+      connection.release();
+    }
   } catch (error) {
     console.error('获取人员异动数据失败:', error);
     res.status(500).json({ error: '获取人员异动数据失败' });
@@ -387,7 +431,7 @@ router.get('/changes', async (req, res) => {
 });
 
 /**
- * 新增员工
+ * 新增员工 - 直接插入花名册表
  */
 router.post('/roster', async (req, res) => {
   try {
@@ -398,78 +442,70 @@ router.post('/roster', async (req, res) => {
     const connection = await pool.getConnection();
 
     try {
-      // 开始事务
-      await connection.beginTransaction();
-
-      // 1. 插入员工基本信息
-      const basicInfoSql = `
-        INSERT INTO employee_basic_info (
-          name, gender, birth_date, native_place, id_number, id_address,
-          current_address, phone_number, emergency_contact_name, emergency_contact_phone,
-          bank_account, bank_branch, graduation_school, major, graduation_date,
-          interviewer_name, education_id, education_mode_id, political_status_id, marital_status_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      // 直接插入到employee_roster表
+      const insertSql = `
+        INSERT INTO employee_roster (
+          sequence_number, region, department, position, name, gender, ethnicity,
+          political_status, employee_type, insurance_type, birth_date, birthday,
+          entry_date, actual_regularization_date, remarks, contract_end_date,
+          work_age_months, id_card_number, id_card_address, age, hometown,
+          graduation_school, major, education, education_method, graduation_date,
+          interviewer_name, marital_status, current_address, personal_contact,
+          emergency_contact_name, emergency_contact_phone, bank_card_number,
+          bank_branch_info, labor_relation_affiliation, social_insurance_affiliation,
+          non_compete_agreement, confidentiality_agreement, remarks1, remarks2
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
 
-      const [basicResult] = await connection.execute(basicInfoSql, [
+      const [result] = await connection.execute(insertSql, [
+        employeeData.sequence_number || null,
+        employeeData.region || null,
+        employeeData.department || null,
+        employeeData.position || null,
         employeeData.name,
-        employeeData.gender === '男' ? 'M' : (employeeData.gender === '女' ? 'F' : 'O'),
-        employeeData.birth_date,
-        employeeData.hometown,
-        employeeData.id_card_number,
-        employeeData.id_card_address,
-        employeeData.current_address,
-        employeeData.personal_contact,
-        employeeData.emergency_contact_name,
-        employeeData.emergency_contact_phone,
-        employeeData.bank_card_number,
-        employeeData.bank_branch_info,
-        employeeData.graduation_school,
-        employeeData.major,
-        employeeData.graduation_date,
-        employeeData.interviewer_name,
-        await getSystemId(connection, 'sys_education', 'education', employeeData.education),
-        await getSystemId(connection, 'sys_education_mode', 'education_mode', employeeData.education_method),
-        await getSystemId(connection, 'sys_political_status', 'political_status', employeeData.political_status),
-        await getSystemId(connection, 'sys_marital_status', 'marital_status', employeeData.marital_status)
+        employeeData.gender || null,
+        employeeData.ethnicity || null,
+        employeeData.political_status || null,
+        employeeData.employee_type || null,
+        employeeData.insurance_type || null,
+        employeeData.birth_date || null,
+        employeeData.birthday || null,
+        employeeData.entry_date || null,
+        employeeData.actual_regularization_date || null,
+        employeeData.remarks || null,
+        employeeData.contract_end_date || null,
+        employeeData.work_age_months || null,
+        employeeData.id_card_number || null,
+        employeeData.id_card_address || null,
+        employeeData.age || null,
+        employeeData.hometown || null,
+        employeeData.graduation_school || null,
+        employeeData.major || null,
+        employeeData.education || null,
+        employeeData.education_method || null,
+        employeeData.graduation_date || null,
+        employeeData.interviewer_name || null,
+        employeeData.marital_status || null,
+        employeeData.current_address || null,
+        employeeData.personal_contact || null,
+        employeeData.emergency_contact_name || null,
+        employeeData.emergency_contact_phone || null,
+        employeeData.bank_card_number || null,
+        employeeData.bank_branch_info || null,
+        employeeData.labor_relation_affiliation || null,
+        employeeData.social_insurance_affiliation || null,
+        employeeData.non_compete_agreement || null,
+        employeeData.confidentiality_agreement || null,
+        employeeData.remarks1 || null,
+        employeeData.remarks2 || null
       ]);
-
-      const employeeId = basicResult.insertId;
-
-      // 2. 插入员工职位信息
-      const positionInfoSql = `
-        INSERT INTO employee_position_info (
-          employee_id, region_id, department_id, position_id, employee_type,
-          insurance_type, entry_date, actual_regularization_date, contract_end_date, remarks
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `;
-
-      await connection.execute(positionInfoSql, [
-        employeeId,
-        await getSystemId(connection, 'sys_region', 'region', employeeData.region),
-        await getSystemId(connection, 'sys_department', 'department', employeeData.department),
-        await getSystemId(connection, 'sys_position', 'position', employeeData.position),
-        employeeData.employee_type === '正式' ? 1 : (employeeData.employee_type === '试用' ? 2 : 3),
-        employeeData.insurance_type === '社保' ? 1 : (employeeData.insurance_type === '工伤' ? 2 : null),
-        employeeData.entry_date,
-        employeeData.actual_regularization_date,
-        employeeData.contract_end_date,
-        employeeData.remarks
-      ]);
-
-      // 提交事务
-      await connection.commit();
 
       res.json({
         success: true,
         message: '员工添加成功',
-        employeeId: employeeId
+        employeeId: result.insertId
       });
 
-    } catch (error) {
-      // 回滚事务
-      await connection.rollback();
-      throw error;
     } finally {
       connection.release();
     }
@@ -878,5 +914,214 @@ async function getOrCreateSystemId(connection, tableName, fieldName, value) {
 
   return result.insertId;
 }
+
+/**
+ * 更新员工基本信息
+ */
+router.put('/roster/:id', async (req, res) => {
+  try {
+    const employeeId = req.params.id;
+    const updateData = req.body;
+    console.log('收到更新员工请求:', { employeeId, updateData });
+
+    const pool = req.pool;
+    const connection = await pool.getConnection();
+
+    try {
+      await connection.beginTransaction();
+
+      // 更新花名册表中的基本信息
+      const updateSql = `
+        UPDATE employee_roster
+        SET name = ?, department = ?, position = ?, region = ?, personal_contact = ?
+        WHERE sequence_number = ? OR name = ?
+      `;
+
+      await connection.execute(updateSql, [
+        updateData.name,
+        updateData.department,
+        updateData.position,
+        updateData.region,
+        updateData.personal_contact,
+        employeeId,
+        updateData.originalName || updateData.name
+      ]);
+
+      await connection.commit();
+
+      res.json({
+        success: true,
+        message: '员工信息更新成功'
+      });
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('更新员工信息失败:', error);
+    res.status(500).json({ error: '更新员工信息失败' });
+  }
+});
+
+/**
+ * 员工离职操作
+ */
+router.post('/resignation', async (req, res) => {
+  try {
+    const resignationData = req.body;
+    console.log('收到离职请求:', resignationData);
+
+    const pool = req.pool;
+    const connection = await pool.getConnection();
+
+    try {
+      await connection.beginTransaction();
+
+      // 1. 从花名册获取员工完整信息
+      const getEmployeeSql = `
+        SELECT * FROM employee_roster
+        WHERE sequence_number = ? OR name = ?
+      `;
+
+      const [employeeRows] = await connection.execute(getEmployeeSql, [
+        resignationData.employeeId,
+        resignationData.name
+      ]);
+
+      if (employeeRows.length === 0) {
+        throw new Error('未找到该员工信息');
+      }
+
+      const employee = employeeRows[0];
+
+      // 2. 将员工信息插入到离职监控表
+      const insertResignationSql = `
+        INSERT INTO resignation_monitoring (
+          sequence_number, region, department, position, name, gender, ethnicity,
+          political_status, employee_type, insurance_type, birth_date, birthday,
+          entry_date, actual_regularization_date, remarks, contract_end_date,
+          work_age_months, id_card_number, id_card_address, age, hometown,
+          graduation_school, major, education, education_method, graduation_date,
+          interviewer_name, marital_status, current_address, personal_contact,
+          emergency_contact_name, emergency_contact_phone, bank_card_number,
+          bank_branch_info, labor_relation_affiliation, social_insurance_affiliation,
+          non_compete_agreement, confidentiality_agreement, remarks1, remarks2,
+          resignation_date, resignation_type, resignation_reason, resignation_remarks
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `;
+
+      await connection.execute(insertResignationSql, [
+        employee.sequence_number, employee.region, employee.department, employee.position,
+        employee.name, employee.gender, employee.ethnicity, employee.political_status,
+        employee.employee_type, employee.insurance_type, employee.birth_date, employee.birthday,
+        employee.entry_date, employee.actual_regularization_date, employee.remarks,
+        employee.contract_end_date, employee.work_age_months, employee.id_card_number,
+        employee.id_card_address, employee.age, employee.hometown, employee.graduation_school,
+        employee.major, employee.education, employee.education_method, employee.graduation_date,
+        employee.interviewer_name, employee.marital_status, employee.current_address,
+        employee.personal_contact, employee.emergency_contact_name, employee.emergency_contact_phone,
+        employee.bank_card_number, employee.bank_branch_info, employee.labor_relation_affiliation,
+        employee.social_insurance_affiliation, employee.non_compete_agreement,
+        employee.confidentiality_agreement, employee.remarks1, employee.remarks2,
+        resignationData.resignation_date, resignationData.resignation_type,
+        resignationData.resignation_reason, resignationData.resignation_remarks
+      ]);
+
+      // 3. 从花名册删除该员工
+      const deleteEmployeeSql = `
+        DELETE FROM employee_roster
+        WHERE sequence_number = ? OR name = ?
+      `;
+
+      await connection.execute(deleteEmployeeSql, [
+        resignationData.employeeId,
+        resignationData.name
+      ]);
+
+      await connection.commit();
+
+      res.json({
+        success: true,
+        message: '离职操作完成，员工信息已迁移到离职监控表'
+      });
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('离职操作失败:', error);
+    res.status(500).json({ error: error.message || '离职操作失败' });
+  }
+});
+
+/**
+ * 员工调动操作
+ */
+router.post('/transfer', async (req, res) => {
+  try {
+    const transferData = req.body;
+    console.log('收到调动请求:', transferData);
+
+    const pool = req.pool;
+    const connection = await pool.getConnection();
+
+    try {
+      await connection.beginTransaction();
+
+      // 1. 插入调动记录到人员异动表
+      const insertTransferSql = `
+        INSERT INTO personnel_changes (
+          employee_id, department, name, original_position, new_position,
+          change_date, change_type, change_remarks
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `;
+
+      await connection.execute(insertTransferSql, [
+        transferData.employeeId,
+        transferData.department,
+        transferData.name,
+        transferData.original_position,
+        transferData.new_position,
+        transferData.change_date,
+        transferData.change_type,
+        transferData.change_remarks
+      ]);
+
+      // 2. 更新花名册中的岗位信息（如果是岗位调动）
+      if (transferData.new_position && transferData.new_position !== transferData.original_position) {
+        const updatePositionSql = `
+          UPDATE employee_roster
+          SET position = ?
+          WHERE sequence_number = ? OR name = ?
+        `;
+
+        await connection.execute(updatePositionSql, [
+          transferData.new_position,
+          transferData.employeeId,
+          transferData.name
+        ]);
+      }
+
+      await connection.commit();
+
+      res.json({
+        success: true,
+        message: '调动操作完成，记录已保存到人员异动表'
+      });
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('调动操作失败:', error);
+    res.status(500).json({ error: error.message || '调动操作失败' });
+  }
+});
 
 module.exports = router;
