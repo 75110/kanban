@@ -123,6 +123,8 @@ import {
 } from 'echarts/components'
 import VChart from 'vue-echarts'
 import { Loading, DocumentRemove, Download, FullScreen, ArrowDown } from '@element-plus/icons-vue'
+// 引入词云图
+import 'echarts-wordcloud'
 
 // 注册ECharts组件
 use([
@@ -147,7 +149,7 @@ const props = defineProps({
   type: {
     type: String,
     default: 'pie',
-    validator: (value) => ['pie', 'bar', 'bubble', 'heatmap'].includes(value)
+    validator: (value) => ['pie', 'bar', 'bubble', 'heatmap', 'wordcloud'].includes(value)
   },
   horizontal: {
     type: Boolean,
@@ -194,6 +196,9 @@ const handleChartClick = (params) => {
   } else if (props.type === 'bar') {
     // 柱状图：使用 params.name 或 params.axisValue
     clickedValue = params.name || params.axisValue
+  } else if (props.type === 'wordcloud') {
+    // 词云图：使用 params.name
+    clickedValue = params.name
   }
 
   if (clickedValue) {
@@ -901,6 +906,75 @@ const chartOption = computed(() => {
         }
       }]
     }
+  } else if (props.type === 'wordcloud') {
+    // 词云图配置
+    if (!values || values.length === 0) {
+      console.log('WordCloud: No data available')
+      return {}
+    }
+
+    // 转换数据格式为词云图需要的格式
+    const wordCloudData = labels.map((label, index) => ({
+      name: label,
+      value: values[index]
+    }))
+
+    // 计算字体大小范围
+    const maxValue = Math.max(...values)
+    const minValue = Math.min(...values)
+    const maxFontSize = 80
+    const minFontSize = 16
+
+    return {
+      tooltip: {
+        trigger: 'item',
+        formatter: function(params) {
+          const total = values.reduce((sum, val) => sum + val, 0)
+          const percentage = total > 0 ? ((params.value / total) * 100).toFixed(1) : 0
+          return `${params.name}<br/>人数: ${params.value}人<br/>占比: ${percentage}%`
+        },
+        textStyle: {
+          fontSize: 13,
+          fontWeight: 500
+        }
+      },
+      backgroundColor: 'transparent',
+      series: [{
+        type: 'wordCloud',
+        gridSize: 2,
+        sizeRange: [minFontSize, maxFontSize],
+        rotationRange: [-45, 45],
+        rotationStep: 45,
+        shape: 'square',
+        left: 0,
+        top: 0,
+        width: '100%',
+        height: '100%',
+        right: 0,
+        bottom: 0,
+        drawOutOfBound: true,
+        layoutAnimation: true,
+        maskImage: null,
+        keepAspect: false,
+        textStyle: {
+          fontFamily: 'sans-serif',
+          fontWeight: 'bold',
+          color: function () {
+            // 随机颜色，使用蓝色系
+            const colors = ['#1890ff', '#40a9ff', '#69c0ff', '#91d5ff', '#096dd9', '#0050b3', '#003a8c']
+            return colors[Math.floor(Math.random() * colors.length)]
+          }
+        },
+        emphasis: {
+          focus: 'self',
+          textStyle: {
+            shadowBlur: 10,
+            shadowColor: '#333'
+          }
+        },
+        data: wordCloudData
+      }]
+    }
   } else {
     return {
       animation: true,
@@ -922,8 +996,8 @@ const chartOption = computed(() => {
         hideDelay: 100
       },
       grid: {
-        left: props.horizontal ? '5%' : '5%',
-        right: props.horizontal ? '5%' : '5%',
+        left: props.horizontal ? '2%' : '2%',
+        right: props.horizontal ? '2%' : '2%',
         top: '5%',
         bottom: props.horizontal ? '8%' : (labels.length > 8 ? '15%' : '8%'),
         containLabel: true
@@ -1060,8 +1134,8 @@ const fullscreenChartOption = computed(() => {
   // 调整图表内边距以适应更大的显示区域
   fullscreenOption.grid = {
     ...fullscreenOption.grid,
-    left: '8%',
-    right: '8%',
+    left: '5%',
+    right: '5%',
     top: '15%',
     bottom: '15%'
   }

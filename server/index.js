@@ -15,11 +15,11 @@ app.use(express.json());
 
 // 数据库连接配置
 const dbConfig = {
-  host: '192.168.24.6',
-  port: 3306,
-  user: 'root',
-  password: 'JL123456',
-  database: 'hr',
+  host: process.env.DB_HOST || '192.168.24.6',
+  port: process.env.DB_PORT || 3306,
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || 'JL123456',
+  database: process.env.DB_NAME || 'hr_dashboard',
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,

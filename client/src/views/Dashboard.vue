@@ -248,41 +248,51 @@
         </div>
       </div>
 
-      <!-- 人才流失统计卡片 -->
-      <div class="dashboard-layout">
-        <div class="stats-grid" :class="{ 'loading': isRefreshing }">
-          <StatCard title="总离职人数" :value="turnoverStats.totalResigned || 0" type="danger"
-            :growth="getTurnoverGrowthRate('totalResigned')" :growth-type="getGrowthType()" />
+      <!-- 人才流失分析主布局 -->
+      <div class="turnover-main-layout">
+        <!-- 左侧区域：统计卡片 + 饼图 -->
+        <div class="turnover-left-section">
+          <!-- 统计卡片区域 -->
+          <div class="turnover-stats-section">
+            <div class="turnover-stats-row" :class="{ 'loading': isRefreshing }">
+              <StatCard title="总离职人数" :value="turnoverStats.totalResigned || 0" type="danger"
+                :growth="getTurnoverGrowthRate('totalResigned')" :growth-type="getGrowthType()" />
 
-          <StatCard title="离职率" :value="parseFloat(calculateTurnoverRate().toFixed(2))" type="warning"
-            :growth="getTurnoverGrowthRate('turnoverRate')" :growth-type="getGrowthType()" suffix="%" />
+              <StatCard title="离职率" :value="parseFloat(calculateTurnoverRate().toFixed(2))" type="warning"
+                :growth="getTurnoverGrowthRate('turnoverRate')" :growth-type="getGrowthType()" suffix="%" />
+            </div>
+          </div>
+
+          <!-- 饼图区域 -->
+          <div class="turnover-pie-section">
+            <ChartCard v-if="turnoverDepartmentData" title="离职部门分析" type="pie" chart-type="resignationDepartment"
+              :data="turnoverDepartmentData" :loading="turnoverLoading.department"
+              @chart-click="handleTurnoverChartClick" />
+            <ChartCard v-if="turnoverTenureData" title="离职人员在职时间分布" type="pie" pie-style="solid"
+              chart-type="resignationTenure" :data="turnoverTenureData" :loading="turnoverLoading.tenure"
+              @chart-click="handleTurnoverChartClick" />
+          </div>
+        </div>
+
+        <!-- 右侧区域：离职原因词云图 -->
+        <div class="turnover-right-section">
+          <ChartCard v-if="turnoverReasonData" title="离职原因分析" type="wordcloud" chart-type="resignationReason"
+            :data="turnoverReasonData" :loading="turnoverLoading.reason" @chart-click="handleTurnoverChartClick" />
         </div>
       </div>
 
-      <!-- 人才流失图表区域 -->
-      <div class="charts-layout">
-        <!-- 第一行：离职部门分布、在职时间分布和离职原因 -->
-        <div class="charts-main-row">
-          <ChartCard v-if="turnoverDepartmentData" title="离职最多的部门前5" type="pie" chart-type="resignationDepartment"
-            :data="turnoverDepartmentData" :loading="turnoverLoading.department"
-            @chart-click="handleTurnoverChartClick" />
-          <ChartCard v-if="turnoverTenureData" title="离职人员在职时间分布" type="pie" pie-style="solid"
-            chart-type="resignationTenure" :data="turnoverTenureData" :loading="turnoverLoading.tenure"
-            @chart-click="handleTurnoverChartClick" />
-          <ChartCard v-if="turnoverReasonData" title="离职原因分析" type="bar" chart-type="resignationReason"
-            :data="turnoverReasonData" :loading="turnoverLoading.reason" @chart-click="handleTurnoverChartClick" />
-        </div>
-
-        <!-- 第二行：离职人员部门统计 -->
-        <div class="charts-detail-row">
-          <ChartCard v-if="turnoverDepartmentStatsData" title="离职人员的部门人数统计" type="bar"
+      <!-- 底部图表区域 -->
+      <div class="turnover-bottom-section">
+        <!-- 离职人员部门统计 -->
+        <div class="turnover-bottom-row">
+          <ChartCard v-if="turnoverDepartmentStatsData" title="各部门离职人数" type="bar"
             chart-type="resignationDepartmentStats" :data="turnoverDepartmentStatsData"
             :loading="turnoverLoading.departmentStats" @chart-click="handleTurnoverChartClick" />
         </div>
 
-        <!-- 第三行：离职岗位分布 -->
-        <div class="charts-detail-row">
-          <ChartCard v-if="turnoverPositionData" title="离职岗位分布" type="bar" chart-type="resignationPosition"
+        <!-- 离职岗位分布 -->
+        <div class="turnover-bottom-row">
+          <ChartCard v-if="turnoverPositionData" title="各岗位离职人数" type="bar" chart-type="resignationPosition"
             :data="turnoverPositionData" :loading="turnoverLoading.position" @chart-click="handleTurnoverChartClick" />
         </div>
       </div>
@@ -1705,7 +1715,7 @@ onMounted(async () => {
 /* 整体主布局：左侧统计卡片+饼图，右侧高条形图 */
 .dashboard-main-layout {
   display: grid;
-  grid-template-columns: 2fr 1fr;
+  grid-template-columns: 1.8fr 1.2fr;
   gap: 32px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -1773,6 +1783,78 @@ onMounted(async () => {
   height: 400px;
 }
 
+/* 人才流失分析主布局 */
+.turnover-main-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+  margin-bottom: 32px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 人才流失左侧区域：统计卡片 + 饼图 */
+.turnover-left-section {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+/* 人才流失统计卡片区域 */
+.turnover-stats-section {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.turnover-stats-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.turnover-stats-row.loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* 人才流失饼图区域 */
+.turnover-pie-section {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+}
+
+.turnover-pie-section > * {
+  height: 400px;
+}
+
+/* 人才流失右侧区域：词云图 */
+.turnover-right-section {
+  display: flex;
+}
+
+.turnover-right-section > * {
+  width: 100%;
+  min-height: calc(100% - 0px);
+}
+
+/* 人才流失底部图表区域 */
+.turnover-bottom-section {
+  margin-top: 32px;
+}
+
+.turnover-bottom-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 32px;
+  margin-bottom: 32px;
+}
+
+.turnover-bottom-row > * {
+  height: 400px;
+}
+
 /* 保持原有样式以兼容其他页面 */
 .charts-main-row {
   display: grid;
@@ -1837,6 +1919,21 @@ onMounted(async () => {
     grid-template-columns: repeat(2, 1fr);
     gap: 20px;
   }
+
+  /* 人才流失分析响应式 */
+  .turnover-main-layout {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .turnover-pie-section {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+  }
+
+  .turnover-right-section > * {
+    min-height: 400px;
+  }
 }
 
 @media (max-width: 1200px) {
@@ -1862,6 +1959,26 @@ onMounted(async () => {
 
   .dashboard-right-section > * {
     min-height: 400px;
+  }
+
+  /* 人才流失分析响应式 */
+  .turnover-main-layout {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .turnover-pie-section {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .turnover-right-section > * {
+    min-height: 400px;
+  }
+
+  .turnover-stats-row {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
   }
 }
 
@@ -1900,17 +2017,38 @@ onMounted(async () => {
     min-height: 400px;
   }
 
+  /* 人才流失分析移动端响应式 */
+  .turnover-main-layout {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .turnover-pie-section {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .turnover-right-section > * {
+    min-height: 400px;
+  }
+
+  .turnover-stats-row {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
   .charts-main-row {
     grid-template-columns: 1fr;
     gap: 16px;
   }
-}
 
   .secondary-stat-card {
     padding: 16px 12px;
     min-height: 90px;
   }
+}
 
+@media (max-width: 480px) {
   .dashboard {
     padding: 20px;
     background: #f5f7fa;
@@ -1968,4 +2106,5 @@ onMounted(async () => {
   .charts-detail-row>* {
     height: 380px;
   }
+}
 </style>

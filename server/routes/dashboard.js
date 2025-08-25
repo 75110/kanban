@@ -936,7 +936,8 @@ router.get('/turnover-reason-analysis', async (req, res) => {
          LEFT JOIN sys_position sp ON epi.position_id = sp.id
          ${whereClause}
          GROUP BY eri.resignation_reason
-         ORDER BY count DESC`,
+         ORDER BY count DESC
+         LIMIT 20`,
         params
       );
 

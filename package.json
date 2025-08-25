@@ -23,6 +23,7 @@
     "concurrently": "^8.2.2"
   },
   "dependencies": {
+    "echarts-wordcloud": "^2.1.0",
     "mysql2": "^3.14.3"
   }
 }

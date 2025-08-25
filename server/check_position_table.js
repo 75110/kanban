@@ -5,7 +5,7 @@ async function checkPositionTable() {
     host: '192.168.24.6',
     user: 'root',
     password: 'JL123456',
-    database: 'hr',
+    database: 'hr_dashboard',
     charset: 'utf8mb4'
   });
 

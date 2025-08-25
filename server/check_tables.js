@@ -5,7 +5,8 @@ const dbConfig = {
   port: 3306,
   user: 'root',
   password: 'JL123456',
-  database: 'hr'
+  database: 'hr_dashboard',
+  charset: 'utf8mb4'
 };
 
 async function checkTables() {
