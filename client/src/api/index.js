@@ -176,12 +176,18 @@ export const employeeApi = {
 
   // 导出离职监控数据
   exportResignation(params) {
-    return api.get('/employee/resignation/export', { params });
+    return api.get("/employee/resignation/export", { params });
   },
 
   // 导出人员异动数据
   exportChanges(params) {
-    return api.get('/employee/changes/export', { params });
+    return api.get("/employee/changes/export", { params });
+  },
+};
+
+export const commonApi = {
+  getCommonData() {
+    return api.get("/common", {});
   },
 };
 

@@ -65,6 +65,7 @@ testDatabaseConnection();
 const dashboardRoutes = require('./routes/dashboard');
 const employeeRoutes = require('./routes/employee');
 const schemaRoutes = require('./routes/schema');
+const commonRoutes = require('./routes/common');
 
 // 将数据库连接池传递给路由
 app.use('/api/dashboard', (req, res, next) => {
@@ -81,6 +82,11 @@ app.use('/api/schema', (req, res, next) => {
   req.pool = pool;
   next();
 }, schemaRoutes);
+
+app.use('/api/common', (req, res, next) => {
+  req.pool = pool;
+  next();
+}, commonRoutes);
 
 // 健康检查
 app.get('/api/health', (req, res) => {
