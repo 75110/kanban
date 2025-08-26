@@ -2,3 +2,4 @@
 /.what-is-this.md
 node_modules/
 excel_templates/
+client/dist/
