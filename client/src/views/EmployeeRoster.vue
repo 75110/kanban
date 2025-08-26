@@ -10,17 +10,9 @@
           </el-icon>
           新增员工
         </el-button>
-        <el-upload
-          ref="uploadRef"
-          :action="uploadUrl"
-          :headers="uploadHeaders"
-          :before-upload="beforeUpload"
-          :on-success="onUploadSuccess"
-          :on-error="onUploadError"
-          :show-file-list="false"
-          accept=".xlsx,.xls"
-          style="display: inline-block; margin-right: 12px;"
-        >
+        <el-upload ref="uploadRef" :action="uploadUrl" :headers="uploadHeaders" :before-upload="beforeUpload"
+          :on-success="onUploadSuccess" :on-error="onUploadError" :show-file-list="false" accept=".xlsx,.xls"
+          style="display: inline-block; margin-right: 12px;">
           <el-button>
             <el-icon>
               <Upload />
@@ -51,7 +43,7 @@
         </div>
         <div class="search-item">
           <el-select v-model="searchForm.department" placeholder="选择部门" clearable>
-            <el-option v-for="dept in departments" :key="dept" :label="dept" :value="dept" />
+            <el-option v-for="dept in departments" :key="dept.id" :label="dept.department" :value="dept.id" />
           </el-select>
         </div>
         <div class="search-item">
@@ -113,17 +105,11 @@
     </div>
 
     <!-- 编辑对话框 -->
-    <EmployeeEditDialog
-      v-model:visible="editDialogVisible"
-      :employee-data="currentEmployee"
-      @success="handleEditSuccess"
-    />
+    <EmployeeEditDialog v-model:visible="editDialogVisible" :employee-data="currentEmployee"
+      @success="handleEditSuccess" />
 
     <!-- 新增员工对话框 -->
-    <AddEmployeeDialog
-      v-model:visible="addDialogVisible"
-      @success="handleAddSuccess"
-    />
+    <AddEmployeeDialog v-model:visible="addDialogVisible" @success="handleAddSuccess" />
   </div>
 </template>
 
@@ -131,7 +117,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download, Upload, User, Search, Refresh } from '@element-plus/icons-vue'
-import { employeeApi } from '../api'
+import { dashboardApi, employeeApi } from '../api'
 import { calculateAge, calculateWorkAge } from '../utils'
 import EmployeeEditDialog from '@/components/EmployeeEditDialog.vue'
 import AddEmployeeDialog from '@/components/AddEmployeeDialog.vue'
@@ -282,7 +268,7 @@ const handleExport = async () => {
 // 上传前验证
 const beforeUpload = (file) => {
   const isExcel = file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
-                  file.type === 'application/vnd.ms-excel'
+    file.type === 'application/vnd.ms-excel'
 
   if (!isExcel) {
     ElMessage.error('只能上传Excel文件!')
@@ -361,6 +347,9 @@ const handleDelete = async (row) => {
 // 组件挂载时获取数据
 onMounted(() => {
   fetchEmployeeData()
+  dashboardApi.getFilterOptions().then(res => {
+    departments.value = res.departments
+  })
 })
 </script>
 
