@@ -1266,38 +1266,69 @@ router.post('/transfer', async (req, res) => {
     try {
       await connection.beginTransaction();
 
-      // 1. 插入调动记录到人员异动表
+      // 1. 首先检查并添加new_department字段（如果不存在）
+      try {
+        await connection.execute(`
+          ALTER TABLE personnel_changes
+          ADD COLUMN new_department VARCHAR(100) COMMENT '新部门'
+          AFTER new_position
+        `);
+        console.log('已添加new_department字段到personnel_changes表');
+      } catch (error) {
+        // 字段已存在，忽略错误
+        if (!error.message.includes('Duplicate column name')) {
+          console.error('添加new_department字段失败:', error);
+        }
+      }
+
+      // 2. 插入调动记录到人员异动表
       const insertTransferSql = `
         INSERT INTO personnel_changes (
-          department, name, original_position, new_position,
+          department, name, original_position, new_position, new_department,
           change_date, change_reason, remarks
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `;
-      const change_date =new Date(transferData.change_date).toISOString().split('T')[0]
+      const change_date = new Date(transferData.change_date).toISOString().split('T')[0]
       await connection.execute(insertTransferSql, [
-        transferData.department,
+        transferData.department || transferData.original_department,
         transferData.name,
         transferData.original_position,
         transferData.new_position,
+        transferData.new_department || transferData.department, // 新部门字段
         change_date,
         // 兼容前端可能传入的 change_type 或 change_reason
         transferData.change_reason || transferData.change_type,
         transferData.remarks || transferData.change_remarks
       ]);
 
-      // 2. 更新花名册中的岗位信息（如果是岗位调动）
+      // 3. 更新花名册中的岗位和部门信息
+      let updateFields = [];
+      let updateValues = [];
+
+      // 如果是岗位调动
       if (transferData.new_position && transferData.new_position !== transferData.original_position) {
-        const updatePositionSql = `
+        updateFields.push('position = ?');
+        updateValues.push(transferData.new_position);
+      }
+
+      // 如果是部门调动
+      if (transferData.new_department && transferData.new_department !== transferData.original_department) {
+        updateFields.push('department = ?');
+        updateValues.push(transferData.new_department);
+      }
+
+      // 如果有需要更新的字段
+      if (updateFields.length > 0) {
+        updateValues.push(transferData.employeeId, transferData.name);
+
+        const updateSql = `
           UPDATE employee_roster
-          SET position = ?
+          SET ${updateFields.join(', ')}
           WHERE sequence_number = ? OR name = ?
         `;
 
-        await connection.execute(updatePositionSql, [
-          transferData.new_position,
-          transferData.employeeId,
-          transferData.name
-        ]);
+        await connection.execute(updateSql, updateValues);
+        console.log('已更新花名册中的员工信息');
       }
 
       await connection.commit();
