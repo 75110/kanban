@@ -112,6 +112,15 @@ function getDateRange(year, month) {
       start: `${year}-01-01`,
       end: `${year}-12-31`
     };
+  } else if (month) {
+    // 只选择月份时，默认查询当前年份的该月份
+    const currentYear = new Date().getFullYear();
+    const startDate = moment(`${currentYear}-${month.toString().padStart(2, '0')}-01`);
+    const endDate = startDate.clone().endOf('month');
+    return {
+      start: startDate.format('YYYY-MM-DD'),
+      end: endDate.format('YYYY-MM-DD')
+    };
   }
   return null;
 }

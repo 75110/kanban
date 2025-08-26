@@ -289,7 +289,7 @@ async function getCurrentStats(pool, { organizationRegion, region, department, w
     // 在职员工数（从employee_roster表统计）
     let totalResult;
     if (year) {
-      // 选择年份：统计截止到该年末的累计在职人数（按入职日期 <= 年末）
+      // 选择年份（无论是否选月）：统计截止到该年末的累计在职人数
       const { where: baseWhere, params: baseParams } = buildWhere('er', {
         organizationRegion, region, department, workAge, education, dateField: 'entry_date'
       });
@@ -316,62 +316,19 @@ async function getCurrentStats(pool, { organizationRegion, region, department, w
       );
     }
 
-    // 新入职人数（当月或当年）
-    let newResult;
-    if (year && month) {
-      // 如果指定了年月，只统计该月入职的员工
-      const { where: newWhere, params: newParams } = buildWhere('er', {
-        organizationRegion, region, department, workAge, education, dateField: 'entry_date'
-      })
-      // 添加年月条件
-      const conditions = []
-      const params = [...newParams]
-      if (newWhere) {
-        conditions.push(newWhere.replace('WHERE ', ''))
-      }
-      conditions.push('YEAR(er.entry_date) = ? AND MONTH(er.entry_date) = ?')
-      params.push(year, month)
-
-      [newResult] = await connection.execute(
-        `SELECT COUNT(*) as count FROM employee_roster er WHERE ${conditions.join(' AND ')}`,
-        params
-      );
-    } else if (year) {
-      // 如果只指定了年，统计该年入职的员工
-      const { where: newWhere, params: newParams } = buildWhere('er', {
-        organizationRegion, region, department, workAge, education, dateField: 'entry_date'
-      })
-      // 添加年份条件
-      const conditions = []
-      const params = [...newParams]
-      if (newWhere) {
-        conditions.push(newWhere.replace('WHERE ', ''))
-      }
-      conditions.push('YEAR(er.entry_date) = ?')
-      params.push(year)
-
-      console.log('年份筛选查询SQL:', `SELECT COUNT(*) as count FROM employee_roster er WHERE ${conditions.join(' AND ')}`);
-      console.log('年份筛选查询参数:', params);
-      [newResult] = await connection.execute(
-        `SELECT COUNT(*) as count FROM employee_roster er WHERE ${conditions.join(' AND ')}`,
-        params
-      );
-      console.log('年份筛选查询结果:', newResult);
-    } else {
-      // 未选择年份：统计全部的新入职员工（不限定年份）
-      const { where: newWhereAll, params: newParamsAll } = buildWhere('er', {
-        organizationRegion, region, department, workAge, education, dateField: 'entry_date'
-      });
-      [newResult] = await connection.execute(
-        `SELECT COUNT(*) as count FROM employee_roster er ${newWhereAll || ''}`,
-        newParamsAll
-      );
-    }
+    // 新入职人数（使用buildWhere统一处理年月筛选）
+    const { where: newWhere, params: newParams } = buildWhere('er', {
+      organizationRegion, region, department, workAge, education, year, month, dateField: 'entry_date'
+    });
+    const [newResult] = await connection.execute(
+      `SELECT COUNT(*) as count FROM employee_roster er ${newWhere || ''}`,
+      newParams
+    );
 
     // 离职人数（从resignation_monitoring表统计）
     const { where: resignedWhere, params: resignedParams } = buildWhere('rm', {
       organizationRegion, region, department, workAge, education, year, month, dateField: 'resignation_date'
-    })
+    });
     const [resignedResult] = await connection.execute(
       `SELECT COUNT(*) as count FROM resignation_monitoring rm ${resignedWhere}`,
       resignedParams
@@ -380,17 +337,17 @@ async function getCurrentStats(pool, { organizationRegion, region, department, w
     // 异动人数（从personnel_changes表统计）
     const { where: transferWhere, params: transferParams } = buildWhere('pc', {
       organizationRegion, region, department, workAge, education, year, month, dateField: 'change_date'
-    })
+    });
     const [transferResult] = await connection.execute(
       `SELECT COUNT(*) as count FROM personnel_changes pc ${transferWhere}`,
       transferParams
     );
 
     const result = {
-      totalEmployees: totalResult[0]?.count || 0,
-      newEmployees: newResult[0]?.count || 0,
-      resignedEmployees: resignedResult[0]?.count || 0,
-      transferEmployees: transferResult[0]?.count || 0
+      totalEmployees: (totalResult && totalResult[0]) ? totalResult[0].count : 0,
+      newEmployees: (newResult && newResult[0]) ? newResult[0].count : 0,
+      resignedEmployees: (resignedResult && resignedResult[0]) ? resignedResult[0].count : 0,
+      transferEmployees: (transferResult && transferResult[0]) ? transferResult[0].count : 0
     };
 
     console.log('Stats result:', result);
