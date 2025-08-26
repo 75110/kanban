@@ -1,21 +1,9 @@
 <template>
-  <el-dialog
-    v-model="dialogVisible"
-    :title="dialogTitle"
-    width="1000px"
-    :before-close="handleClose"
-    destroy-on-close
-  >
+  <el-dialog v-model="dialogVisible" :title="dialogTitle" width="1000px" :before-close="handleClose" destroy-on-close>
     <el-tabs v-model="activeTab" type="card">
       <!-- 基本信息编辑 -->
       <el-tab-pane label="基本信息" name="basic">
-        <el-form
-          ref="basicFormRef"
-          :model="basicForm"
-          :rules="basicRules"
-          label-width="140px"
-          class="edit-form"
-        >
+        <el-form ref="basicFormRef" :model="basicForm" :rules="basicRules" label-width="140px" class="edit-form">
           <!-- 基本信息 -->
           <el-divider content-position="left">基本信息</el-divider>
           <el-row :gutter="20">
@@ -26,19 +14,25 @@
             </el-col>
             <el-col :span="8">
               <el-form-item label="区域" prop="region">
-                <el-input v-model="basicForm.region" placeholder="请输入区域" />
+                <el-select v-model="basicForm.region" placeholder="请输入区域" clearable>
+                  <el-option v-for="reg in regions" :key="reg.id" :label="reg.region" :value="reg.id" />
+                </el-select>
               </el-form-item>
             </el-col>
             <el-col :span="8">
               <el-form-item label="部门" prop="department">
-                <el-input v-model="basicForm.department" placeholder="请输入部门" />
+                <el-select v-model="basicForm.department" placeholder="请输入部门" clearable>
+                  <el-option v-for="dept in departments" :key="dept.id" :label="dept.department" :value="dept.id" />
+                </el-select>
               </el-form-item>
             </el-col>
           </el-row>
           <el-row :gutter="20">
             <el-col :span="8">
               <el-form-item label="岗位" prop="position">
-                <el-input v-model="basicForm.position" placeholder="请输入岗位" />
+                <el-select v-model="basicForm.position" placeholder="请输入岗位" clearable>
+                  <el-option v-for="pst in positions" :key="pst.id" :label="pst.position" :value="pst.id" />
+                </el-select>
               </el-form-item>
             </el-col>
             <el-col :span="8">
@@ -93,13 +87,8 @@
             </el-col>
             <el-col :span="8">
               <el-form-item label="出生日期" prop="birth_date">
-                <el-date-picker
-                  v-model="basicForm.birth_date"
-                  type="date"
-                  placeholder="选择出生日期"
-                  style="width: 100%"
-                  @change="calculateAge"
-                />
+                <el-date-picker v-model="basicForm.birth_date" type="date" placeholder="选择出生日期" style="width: 100%"
+                  @change="calculateAge" />
               </el-form-item>
             </el-col>
             <el-col :span="8">
@@ -126,33 +115,20 @@
           <el-row :gutter="20">
             <el-col :span="8">
               <el-form-item label="入职时间" prop="entry_date">
-                <el-date-picker
-                  v-model="basicForm.entry_date"
-                  type="date"
-                  placeholder="选择入职时间"
-                  style="width: 100%"
-                  @change="calculateWorkAge"
-                />
+                <el-date-picker v-model="basicForm.entry_date" type="date" placeholder="选择入职时间" style="width: 100%"
+                  @change="calculateWorkAge" />
               </el-form-item>
             </el-col>
             <el-col :span="8">
               <el-form-item label="实际转正日期" prop="actual_regularization_date">
-                <el-date-picker
-                  v-model="basicForm.actual_regularization_date"
-                  type="date"
-                  placeholder="选择转正日期"
-                  style="width: 100%"
-                />
+                <el-date-picker v-model="basicForm.actual_regularization_date" type="date" placeholder="选择转正日期"
+                  style="width: 100%" />
               </el-form-item>
             </el-col>
             <el-col :span="8">
               <el-form-item label="合同终止日期" prop="contract_end_date">
-                <el-date-picker
-                  v-model="basicForm.contract_end_date"
-                  type="date"
-                  placeholder="选择合同终止日期"
-                  style="width: 100%"
-                />
+                <el-date-picker v-model="basicForm.contract_end_date" type="date" placeholder="选择合同终止日期"
+                  style="width: 100%" />
               </el-form-item>
             </el-col>
           </el-row>
@@ -241,12 +217,8 @@
             </el-col>
             <el-col :span="8">
               <el-form-item label="毕业日期" prop="graduation_date">
-                <el-date-picker
-                  v-model="basicForm.graduation_date"
-                  type="date"
-                  placeholder="选择毕业日期"
-                  style="width: 100%"
-                />
+                <el-date-picker v-model="basicForm.graduation_date" type="date" placeholder="选择毕业日期"
+                  style="width: 100%" />
               </el-form-item>
             </el-col>
           </el-row>
@@ -348,22 +320,13 @@
 
       <!-- 离职操作 -->
       <el-tab-pane label="离职操作" name="resignation">
-        <el-form
-          ref="resignationFormRef"
-          :model="resignationForm"
-          :rules="resignationRules"
-          label-width="120px"
-          class="edit-form"
-        >
+        <el-form ref="resignationFormRef" :model="resignationForm" :rules="resignationRules" label-width="120px"
+          class="edit-form">
           <el-row :gutter="20">
             <el-col :span="12">
               <el-form-item label="离职时间" prop="resignation_date">
-                <el-date-picker
-                  v-model="resignationForm.resignation_date"
-                  type="date"
-                  placeholder="选择离职时间"
-                  style="width: 100%"
-                />
+                <el-date-picker v-model="resignationForm.resignation_date" type="date" placeholder="选择离职时间"
+                  style="width: 100%" />
               </el-form-item>
             </el-col>
             <el-col :span="12">
@@ -380,24 +343,16 @@
           <el-row :gutter="20">
             <el-col :span="24">
               <el-form-item label="离职原因" prop="resignation_reason">
-                <el-input
-                  v-model="resignationForm.resignation_reason"
-                  type="textarea"
-                  :rows="3"
-                  placeholder="请输入离职原因"
-                />
+                <el-input v-model="resignationForm.resignation_reason" type="textarea" :rows="3"
+                  placeholder="请输入离职原因" />
               </el-form-item>
             </el-col>
           </el-row>
           <el-row :gutter="20">
             <el-col :span="24">
               <el-form-item label="备注" prop="resignation_remarks">
-                <el-input
-                  v-model="resignationForm.resignation_remarks"
-                  type="textarea"
-                  :rows="3"
-                  placeholder="请输入备注信息"
-                />
+                <el-input v-model="resignationForm.resignation_remarks" type="textarea" :rows="3"
+                  placeholder="请输入备注信息" />
               </el-form-item>
             </el-col>
           </el-row>
@@ -406,13 +361,8 @@
 
       <!-- 调动操作 -->
       <el-tab-pane label="调动操作" name="transfer">
-        <el-form
-          ref="transferFormRef"
-          :model="transferForm"
-          :rules="transferRules"
-          label-width="120px"
-          class="edit-form"
-        >
+        <el-form ref="transferFormRef" :model="transferForm" :rules="transferRules" label-width="120px"
+          class="edit-form">
           <el-row :gutter="20">
             <el-col :span="12">
               <el-form-item label="部门" prop="department">
@@ -461,12 +411,8 @@
           <el-row :gutter="20">
             <el-col :span="12">
               <el-form-item label="异动时间" prop="change_date">
-                <el-date-picker
-                  v-model="transferForm.change_date"
-                  type="date"
-                  placeholder="选择异动时间"
-                  style="width: 100%"
-                />
+                <el-date-picker v-model="transferForm.change_date" type="date" placeholder="选择异动时间"
+                  style="width: 100%" />
               </el-form-item>
             </el-col>
             <el-col :span="12">
@@ -482,12 +428,7 @@
           <el-row :gutter="20">
             <el-col :span="24">
               <el-form-item label="备注" prop="change_remarks">
-                <el-input
-                  v-model="transferForm.change_remarks"
-                  type="textarea"
-                  :rows="3"
-                  placeholder="请输入备注信息"
-                />
+                <el-input v-model="transferForm.change_remarks" type="textarea" :rows="3" placeholder="请输入备注信息" />
               </el-form-item>
             </el-col>
           </el-row>
@@ -507,9 +448,10 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch } from 'vue'
+import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { employeeApi } from '@/api'
+import { commonApi } from '../api'
 
 // Props
 const props = defineProps({
@@ -530,6 +472,9 @@ const emit = defineEmits(['update:visible', 'success'])
 const dialogVisible = ref(false)
 const activeTab = ref('basic')
 const loading = ref(false)
+const regions = ref([])
+const departments = ref([])
+const positions = ref([])
 
 // 表单引用
 const basicFormRef = ref()
@@ -872,6 +817,13 @@ const handleTransfer = async () => {
     ElMessage.error(error.response?.data?.error || '调动操作失败')
   }
 }
+onMounted(async () => {
+  commonApi.getCommonData().then(data => {
+    departments.value = data.departments
+    positions.value = data.positions
+    regions.value = data.regions
+  })
+})
 </script>
 
 <style scoped>

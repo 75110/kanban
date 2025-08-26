@@ -1,24 +1,14 @@
 <template>
-  <el-dialog
-    v-model="dialogVisible"
-    title="编辑异动记录"
-    width="800px"
-    :before-close="handleClose"
-    destroy-on-close
-  >
-    <el-form
-      ref="formRef"
-      :model="form"
-      :rules="rules"
-      label-width="120px"
-      class="edit-change-form"
-    >
+  <el-dialog v-model="dialogVisible" title="编辑异动记录" width="800px" :before-close="handleClose" destroy-on-close>
+    <el-form ref="formRef" :model="form" :rules="rules" label-width="120px" class="edit-change-form">
       <!-- 员工基本信息（可编辑） -->
       <el-divider content-position="left">员工信息</el-divider>
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item label="部门" prop="department">
-            <el-input v-model="form.department" placeholder="请输入部门" />
+            <el-select v-model="form.department" placeholder="选择部门" clearable>
+              <el-option v-for="dept in departments" :key="dept.id" :label="dept.department" :value="dept.id" />
+            </el-select>
           </el-form-item>
         </el-col>
         <el-col :span="12">
@@ -33,24 +23,23 @@
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item label="原岗位" prop="original_position">
-            <el-input v-model="form.original_position" placeholder="请输入原岗位" />
+            <el-select v-model="form.original_position" placeholder="选择岗位" clearable>
+              <el-option v-for="pst in positions" :key="pst.id" :label="pst.position" :value="pst.id" />
+            </el-select>
           </el-form-item>
         </el-col>
         <el-col :span="12">
           <el-form-item label="新岗位" prop="new_position">
-            <el-input v-model="form.new_position" placeholder="请输入新岗位" />
+            <el-select v-model="form.new_position" placeholder="选择岗位" clearable>
+              <el-option v-for="pst in positions" :key="pst.id" :label="pst.position" :value="pst.id" />
+            </el-select>
           </el-form-item>
         </el-col>
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item label="异动时间" prop="change_date">
-            <el-date-picker
-              v-model="form.change_date"
-              type="date"
-              placeholder="选择异动时间"
-              style="width: 100%"
-            />
+            <el-date-picker v-model="form.change_date" type="date" placeholder="选择异动时间" style="width: 100%" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
@@ -66,12 +55,7 @@
       <el-row :gutter="20">
         <el-col :span="24">
           <el-form-item label="备注" prop="remarks">
-            <el-input
-              v-model="form.remarks"
-              type="textarea"
-              :rows="3"
-              placeholder="请输入备注信息"
-            />
+            <el-input v-model="form.remarks" type="textarea" :rows="3" placeholder="请输入备注信息" />
           </el-form-item>
         </el-col>
       </el-row>
@@ -89,9 +73,9 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch } from 'vue'
+import { ref, reactive, watch, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { employeeApi } from '@/api'
+import { employeeApi, commonApi } from '@/api'
 
 // Props
 const props = defineProps({
@@ -112,6 +96,10 @@ const emit = defineEmits(['update:visible', 'success'])
 const dialogVisible = ref(false)
 const loading = ref(false)
 const formRef = ref()
+// 部门数据
+const departments = ref([])
+// 岗位数据
+const positions = ref([])
 
 // 表单数据
 const form = reactive({
@@ -148,7 +136,7 @@ watch(dialogVisible, (newVal) => {
 // 初始化表单数据
 const initFormData = () => {
   const data = props.changeData
-  
+
   form.department = data.department || ''
   form.name = data.name || ''
   form.original_position = data.original_position || ''
@@ -167,28 +155,28 @@ const handleClose = () => {
 const handleSubmit = async () => {
   const formEl = formRef.value
   if (!formEl) return
-  
+
   const valid = await formEl.validate().catch(() => false)
   if (!valid) return
-  
+
   try {
     loading.value = true
-    
+
     // 处理日期格式
     const submitData = { ...form }
     if (submitData.change_date) {
       submitData.change_date = new Date(submitData.change_date).toISOString().split('T')[0]
     }
-    
+
     // 使用组合键更新（因为表没有主键id）
     const updateKey = {
       originalDepartment: props.changeData.department,
       originalName: props.changeData.name,
       originalDate: props.changeData.change_date
     }
-    
+
     await employeeApi.updatePersonnelChange(updateKey, submitData)
-    
+
     ElMessage.success('异动记录更新成功')
     emit('success')
     handleClose()
@@ -198,6 +186,13 @@ const handleSubmit = async () => {
     loading.value = false
   }
 }
+
+onMounted(() => {
+  commonApi.getCommonData().then(res => {
+    departments.value = res.departments
+    positions.value = res.positions
+  })
+})
 </script>
 
 <style scoped>
