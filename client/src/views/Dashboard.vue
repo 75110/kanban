@@ -198,15 +198,17 @@
 
       <!-- 底部图表：各部门在职人数 -->
       <div class="charts-bottom-section">
-        <ChartCard
-          v-if="dashboardStore.departmentChartData"
-          title="各部门在职人数"
-          type="bar"
-          chart-type="department"
-          :data="dashboardStore.departmentChartData"
-          :loading="dashboardStore.loading.department"
-          @chart-click="handleChartClick"
-        />
+        <div class="charts-bottom-row">
+          <ChartCard
+            v-if="dashboardStore.departmentChartData"
+            title="各部门在职人数"
+            type="bar"
+            chart-type="department"
+            :data="dashboardStore.departmentChartData"
+            :loading="dashboardStore.loading.department"
+            @chart-click="handleChartClick"
+          />
+        </div>
       </div>
     </div>
 
@@ -428,7 +430,7 @@ const handleExportCommand = (command) => {
   }
 }
 
-// 导出仪表板为PDF
+// 导出仪表板为PDF（整页导出，包含卡片与所有图表）
 const exportDashboardAsPDF = async () => {
   if (isExporting.value) return
 
@@ -442,9 +444,12 @@ const exportDashboardAsPDF = async () => {
       import('jspdf')
     ])
 
-    // 创建PDF文档
+    // 确保页面已渲染完成
+    await nextTick()
+
+    // 使用横向A4以获得更好的可读性
     const pdf = new jsPDF({
-      orientation: 'portrait',
+      orientation: 'landscape',
       unit: 'mm',
       format: 'a4',
       putOnlyUsedFonts: true,
@@ -453,7 +458,7 @@ const exportDashboardAsPDF = async () => {
 
     const pageWidth = pdf.internal.pageSize.getWidth()
     const pageHeight = pdf.internal.pageSize.getHeight()
-    let currentY = 20
+    let currentY = 16
 
     // 创建标题canvas来避免中文乱码
     const createTextCanvas = (text, fontSize = 24, width = 800, height = 60) => {
@@ -471,183 +476,50 @@ const exportDashboardAsPDF = async () => {
     }
 
     // 添加标题
-    const titleCanvas = createTextCanvas('人事数据看板报告', 28, 600, 80)
-    pdf.addImage(
-      titleCanvas.toDataURL('image/png'),
-      'PNG',
-      (pageWidth - 150) / 2,
-      currentY - 10,
-      150,
-      20
-    )
-    currentY += 25
+    const titleCanvas = createTextCanvas('人事数据看板报告', 26, 600, 70)
+    pdf.addImage(titleCanvas.toDataURL('image/png'), 'PNG', (pageWidth - 160) / 2, currentY - 8, 160, 18)
+    currentY += 22
 
     // 添加生成时间
     const now = new Date()
     const dateStr = `生成时间: ${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`
-    const dateCanvas = createTextCanvas(dateStr, 16, 600, 40)
-    pdf.addImage(
-      dateCanvas.toDataURL('image/png'),
-      'PNG',
-      (pageWidth - 120) / 2,
-      currentY - 5,
-      120,
-      10
-    )
-    currentY += 20
+    const dateCanvas = createTextCanvas(dateStr, 14, 600, 40)
+    pdf.addImage(dateCanvas.toDataURL('image/png'), 'PNG', (pageWidth - 120) / 2, currentY - 4, 120, 8)
+    currentY += 14
 
-    // 获取统计卡片区域
-    const statsContainer = document.querySelector('.stats-grid')
-    if (statsContainer) {
-      try {
-        const statsCanvas = await html2canvas(statsContainer, {
-          backgroundColor: '#ffffff',
-          scale: 2,
-          useCORS: true,
-          allowTaint: true,
-          logging: false
-        })
+    // 选择当前页面的主要内容容器（总览或人才流失）
+    const container = document.querySelector(
+      activeTab.value === 'turnover' ? '.turnover-content' : '.overview-content'
+    ) || document.querySelector('.dashboard')
 
-        // 计算统计卡片的尺寸
-        const statsImgWidth = pageWidth - 20
-        const statsImgHeight = (statsCanvas.height * statsImgWidth) / statsCanvas.width
-        const maxStatsHeight = Math.min(statsImgHeight, 60)
-        const finalStatsWidth = (statsCanvas.width * maxStatsHeight) / statsCanvas.height
-
-        // 添加统计卡片
-        pdf.addImage(
-          statsCanvas.toDataURL('image/png'),
-          'PNG',
-          (pageWidth - finalStatsWidth) / 2,
-          currentY,
-          finalStatsWidth,
-          maxStatsHeight
-        )
-
-        currentY += maxStatsHeight + 20
-      } catch (error) {
-        console.error('添加统计卡片失败:', error)
-        // 如果html2canvas失败，回退到文字方式
-        const statsHeaderCanvas = createTextCanvas('关键指标', 20, 400, 50)
-        pdf.addImage(
-          statsHeaderCanvas.toDataURL('image/png'),
-          'PNG',
-          20,
-          currentY - 5,
-          80,
-          12
-        )
-        currentY += 15
-
-        const stats = dashboardStore.stats
-        const statsText = [
-          `在职人数: ${stats.totalEmployees || 0}`,
-          `入职人数: ${stats.newEmployees || 0}`,
-          `离职人数: ${stats.resignedEmployees || 0}`,
-          `调动人数: ${stats.transferEmployees || 0}`
-        ]
-
-        statsText.forEach(text => {
-          const statCanvas = createTextCanvas(text, 14, 400, 30)
-          pdf.addImage(
-            statCanvas.toDataURL('image/png'),
-            'PNG',
-            20,
-            currentY - 3,
-            100,
-            8
-          )
-          currentY += 10
-        })
-        currentY += 10
-      }
+    if (!container) {
+      throw new Error('未找到可导出的仪表板容器')
     }
 
-    // 获取所有图表卡片并添加到PDF
-    const chartCards = document.querySelectorAll('.chart-container')
-    let chartIndex = 0
+    // 截取整个容器（包含统计卡片与所有图表）
+    const canvas = await html2canvas(container, {
+      backgroundColor: '#ffffff',
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      logging: false,
+      width: container.scrollWidth || container.offsetWidth,
+      height: container.scrollHeight || container.offsetHeight,
+      windowWidth: container.scrollWidth || document.documentElement.scrollWidth,
+      windowHeight: container.scrollHeight || document.documentElement.scrollHeight,
+      scrollX: 0,
+      scrollY: -window.scrollY
+    })
 
-    for (const chartCard of chartCards) {
-      if (currentY > pageHeight - 100) {
-        pdf.addPage()
-        currentY = 20
-      }
+    // 将整页内容缩放到单页PDF中
+    const availableWidth = pageWidth - 20
+    const availableHeight = pageHeight - currentY - 12
+    const ratio = Math.min(availableWidth / canvas.width, availableHeight / canvas.height)
+    const renderWidth = canvas.width * ratio
+    const renderHeight = canvas.height * ratio
+    const x = (pageWidth - renderWidth) / 2
 
-      try {
-        // 使用html2canvas截取整个图表卡片（包括标题和图表）
-        const cardCanvas = await html2canvas(chartCard, {
-          backgroundColor: '#ffffff',
-          scale: 2,
-          useCORS: true,
-          allowTaint: true,
-          logging: false,
-          width: chartCard.offsetWidth,
-          height: chartCard.offsetHeight
-        })
-
-        // 计算图表卡片的尺寸
-        const cardImgWidth = pageWidth - 20
-        const cardImgHeight = (cardCanvas.height * cardImgWidth) / cardCanvas.width
-        const maxCardHeight = Math.min(cardImgHeight, 120)
-        const finalCardWidth = (cardCanvas.width * maxCardHeight) / cardCanvas.height
-
-        // 添加图表卡片
-        pdf.addImage(
-          cardCanvas.toDataURL('image/png'),
-          'PNG',
-          (pageWidth - finalCardWidth) / 2,
-          currentY,
-          finalCardWidth,
-          maxCardHeight
-        )
-
-        currentY += maxCardHeight + 15
-        chartIndex++
-      } catch (error) {
-        console.error('添加图表卡片失败:', error)
-        // 如果html2canvas失败，尝试只添加图表部分
-        try {
-          const chartElement = chartCard.querySelector('.echarts')
-          if (chartElement && chartElement.__echarts_instance__) {
-            const canvas = chartElement.__echarts_instance__.getRenderedCanvas({
-              pixelRatio: 2,
-              backgroundColor: '#fff'
-            })
-
-            const chartTitle = chartCard.querySelector('.chart-title')?.textContent || `图表 ${chartIndex + 1}`
-            const chartTitleCanvas = createTextCanvas(chartTitle, 18, 500, 40)
-            pdf.addImage(
-              chartTitleCanvas.toDataURL('image/png'),
-              'PNG',
-              20,
-              currentY - 5,
-              120,
-              10
-            )
-            currentY += 15
-
-            const imgWidth = pageWidth - 40
-            const imgHeight = (canvas.height * imgWidth) / canvas.width
-            const maxHeight = Math.min(imgHeight, 80)
-            const finalWidth = (canvas.width * maxHeight) / canvas.height
-
-            pdf.addImage(
-              canvas.toDataURL('image/png'),
-              'PNG',
-              (pageWidth - finalWidth) / 2,
-              currentY,
-              finalWidth,
-              maxHeight
-            )
-
-            currentY += maxHeight + 15
-            chartIndex++
-          }
-        } catch (fallbackError) {
-          console.error('回退方案也失败:', fallbackError)
-        }
-      }
-    }
+    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', x, currentY, renderWidth, renderHeight)
 
     // 保存PDF
     const fileName = `人事数据看板报告_${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}.pdf`
@@ -1759,10 +1631,14 @@ onMounted(async () => {
 /* 底部图表区域 */
 .charts-bottom-section {
   margin-top: 32px;
+  position: relative;
+  z-index: 2; /* 确保底部图表在右侧图表之上 */
+  width: 100%; /* 确保占满整个容器宽度 */
 }
 
 .charts-bottom-section > * {
   height: 400px;
+  width: 100%; /* 确保图表卡片占满整个宽度 */
 }
 
 /* 占位卡片样式 */
@@ -1774,6 +1650,17 @@ onMounted(async () => {
 
 /* 底部图表行：全宽条形图 */
 .charts-bottom-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 32px;
+}
+
+.charts-bottom-row > * {
+  height: 400px;
+}
+
+/* 保持原有的底部图表行样式 */
+.charts-bottom-row-old {
   display: grid;
   grid-template-columns: 1fr;
   gap: 32px;

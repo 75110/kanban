@@ -23,8 +23,8 @@
           <el-option
             v-for="region in filterOptions.organizationRegions"
             :key="region.id"
-            :label="region"
-            :value="region"
+            :label="region.region"
+            :value="region.id"
           />
         </el-select>
       </div>

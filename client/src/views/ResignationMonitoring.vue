@@ -4,11 +4,11 @@
     <div class="page-header">
       <h1 class="page-title">离职监控</h1>
       <div class="page-actions">
-        <el-button type="primary">
+        <el-button type="primary" @click="handleAddResignation">
           <el-icon><Plus /></el-icon>
           新增离职记录
         </el-button>
-        <el-button>
+        <el-button @click="handleExport">
           <el-icon><Download /></el-icon>
           导出数据
         </el-button>
@@ -119,6 +119,19 @@
         />
       </div>
     </div>
+
+    <!-- 新增离职记录对话框 -->
+    <AddResignationDialog
+      v-model:visible="addDialogVisible"
+      @success="handleAddSuccess"
+    />
+
+    <!-- 编辑离职记录对话框 -->
+    <EditResignationDialog
+      v-model:visible="editDialogVisible"
+      :resignation-data="currentResignation"
+      @success="handleEditSuccess"
+    />
   </div>
 </template>
 
@@ -127,6 +140,8 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download, User, Search, Refresh } from '@element-plus/icons-vue'
 import { employeeApi } from '../api'
+import AddResignationDialog from '@/components/AddResignationDialog.vue'
+import EditResignationDialog from '@/components/EditResignationDialog.vue'
 
 // 搜索表单
 const searchForm = reactive({
@@ -208,9 +223,68 @@ const handleCurrentChange = (page) => {
   fetchResignationData()
 }
 
+// 新增离职记录
+const addDialogVisible = ref(false)
+
+const handleAddResignation = () => {
+  addDialogVisible.value = true
+}
+
+// 新增成功回调
+const handleAddSuccess = () => {
+  fetchResignationData() // 刷新数据
+}
+
+// 导出数据
+const handleExport = async () => {
+  try {
+    const params = { ...searchForm }
+    const response = await employeeApi.exportResignation(params)
+
+    if (response.data && response.data.length > 0) {
+      // 转换为CSV格式
+      const headers = Object.keys(response.data[0])
+      const csvContent = [
+        headers.join(','),
+        ...response.data.map(row =>
+          headers.map(header => `"${(row[header] || '').toString().replace(/"/g, '""')}"`).join(',')
+        )
+      ].join('\n')
+
+      // 创建下载链接
+      const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' })
+      const link = document.createElement('a')
+      const url = URL.createObjectURL(blob)
+      link.setAttribute('href', url)
+      link.setAttribute('download', `离职监控数据_${new Date().toISOString().slice(0, 10)}.csv`)
+      link.style.visibility = 'hidden'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+
+      ElMessage.success(`导出成功，共 ${response.data.length} 条记录`)
+    } else {
+      ElMessage.warning('没有数据可导出')
+    }
+  } catch (error) {
+    console.error('导出失败:', error)
+    ElMessage.error('导出失败')
+  }
+}
+
 // 编辑记录
+const editDialogVisible = ref(false)
+const currentResignation = ref({})
+
 const handleEdit = (row) => {
-  ElMessage.info('编辑功能开发中...')
+  console.log('编辑离职记录:', row)
+  currentResignation.value = { ...row }
+  editDialogVisible.value = true
+}
+
+// 编辑成功回调
+const handleEditSuccess = () => {
+  fetchResignationData() // 刷新数据
 }
 
 // 删除记录
@@ -225,10 +299,14 @@ const handleDelete = async (row) => {
         type: 'warning'
       }
     )
+
+    await employeeApi.deleteResignation(row.id)
     ElMessage.success('删除成功')
     fetchResignationData()
-  } catch {
-    // 用户取消删除
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('删除失败')
+    }
   }
 }
 

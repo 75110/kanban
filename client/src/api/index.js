@@ -153,6 +153,36 @@ export const employeeApi = {
   postTransfer(params) {
     return api.post("/employee/transfer", params);
   },
+
+  // 删除离职记录
+  deleteResignation(id) {
+    return api.delete(`/employee/resignation/${id}`);
+  },
+
+  // 删除异动记录（使用组合键）
+  deleteChange(changeData) {
+    return api.delete(`/employee/changes`, { data: changeData });
+  },
+
+  // 更新离职记录
+  updateResignation(id, params) {
+    return api.put(`/employee/resignation/${id}`, params);
+  },
+
+  // 更新异动记录
+  updatePersonnelChange(updateKey, params) {
+    return api.put(`/employee/changes`, { updateKey, ...params });
+  },
+
+  // 导出离职监控数据
+  exportResignation(params) {
+    return api.get('/employee/resignation/export', { params });
+  },
+
+  // 导出人员异动数据
+  exportChanges(params) {
+    return api.get('/employee/changes/export', { params });
+  },
 };
 
 export default api;

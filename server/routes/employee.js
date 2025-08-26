@@ -247,102 +247,70 @@ router.get('/resignation', async (req, res) => {
       resignationType
     } = req.query;
 
+    console.log('收到离职监控请求:', { page, pageSize, region, department, name, resignationType });
+
     const pool = req.pool;
-
-    let whereConditions = [];
-    let params = [];
-
-    if (region) {
-      whereConditions.push('sr.region = ?');
-      params.push(region);
-    }
-
-    if (department) {
-      whereConditions.push('sd.department = ?');
-      params.push(department);
-    }
-
-    if (name) {
-      whereConditions.push('ebi.name LIKE ?');
-      params.push(`%${name}%`);
-    }
-
-    if (resignationType) {
-      whereConditions.push('srt.resign_type = ?');
-      params.push(resignationType);
-    }
-
-    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
-
     const connection = await pool.getConnection();
 
     try {
-      // 获取总数
-      const [countResult] = await connection.execute(
-        `SELECT COUNT(*) as total
-         FROM employee_basic_info ebi
-         JOIN employee_position_info epi ON ebi.id = epi.employee_id
-         JOIN employee_resignation_info eri ON ebi.id = eri.employee_id
-         LEFT JOIN sys_region sr ON epi.region_id = sr.id
-         LEFT JOIN sys_department sd ON epi.department_id = sd.id
-         LEFT JOIN sys_position sp ON epi.position_id = sp.id
-         LEFT JOIN sys_education se ON ebi.education_id = se.id
-         LEFT JOIN sys_resign_type srt ON eri.resignation_type_id = srt.id
-         ${whereClause}`,
-        params
-      );
+      let whereConditions = [];
+      let params = [];
 
+      if (region) {
+        whereConditions.push('region LIKE ?');
+        params.push(`%${region}%`);
+      }
+
+      if (department) {
+        whereConditions.push('department LIKE ?');
+        params.push(`%${department}%`);
+      }
+
+      if (name) {
+        whereConditions.push('name LIKE ?');
+        params.push(`%${name}%`);
+      }
+
+      if (resignationType) {
+        whereConditions.push('resignation_type = ?');
+        params.push(resignationType);
+      }
+
+      const whereClause = whereConditions.length > 0 ?
+        `WHERE ${whereConditions.join(' AND ')}` : '';
+
+      // 获取总数
+      const countSql = `SELECT COUNT(*) as total FROM resignation_monitoring ${whereClause}`;
+      const [countResult] = await connection.execute(countSql, params);
       const total = countResult[0].total;
 
       // 获取分页数据
-      const offset = (page - 1) * pageSize;
-      const [rows] = await connection.execute(
-        `SELECT
-           ebi.id,
-           ebi.name,
-           CASE ebi.gender
-             WHEN 'M' THEN '男'
-             WHEN 'F' THEN '女'
-             ELSE '其他'
-           END as gender,
-           ebi.birth_date,
-           ebi.native_place as hometown,
-           sr.region,
-           sd.department,
-           sp.position,
-           CASE epi.employee_type
-             WHEN 1 THEN '正式'
-             WHEN 2 THEN '试用'
-             WHEN 3 THEN '实习'
-             ELSE '未知'
-           END as employee_type,
-           epi.entry_date,
-           eri.resignation_date,
-           srt.region_type as resignation_type,
-           eri.resignation_reason,
-           se.education,
-           TIMESTAMPDIFF(MONTH, epi.entry_date, eri.resignation_date) as work_age_months,
-           TIMESTAMPDIFF(YEAR, ebi.birth_date, CURDATE()) as age
-         FROM employee_basic_info ebi
-         JOIN employee_position_info epi ON ebi.id = epi.employee_id
-         JOIN employee_resignation_info eri ON ebi.id = eri.employee_id
-         LEFT JOIN sys_region sr ON epi.region_id = sr.id
-         LEFT JOIN sys_department sd ON epi.department_id = sd.id
-         LEFT JOIN sys_position sp ON epi.position_id = sp.id
-         LEFT JOIN sys_education se ON ebi.education_id = se.id
-         LEFT JOIN sys_resign_type srt ON eri.resignation_type_id = srt.id
-         ${whereClause}
-         ORDER BY eri.resignation_date DESC
-         LIMIT ? OFFSET ?`,
-        [...params, parseInt(pageSize), offset]
-      );
+      // 为避免某些 MySQL 版本对 LIMIT 参数化的限制，这里将分页参数直接嵌入 SQL（均为服务端计算出的安全整数）
+      const limit = Number.parseInt(pageSize, 10) || 20
+      const offset = (Number.parseInt(page, 10) - 1) * limit
+      const dataSql = `
+        SELECT
+          id, sequence_number, region, department, position, name, gender,
+          entry_date, resignation_date, resignation_type, resignation_reason, resignation_remarks
+        FROM resignation_monitoring
+        ${whereClause}
+        ORDER BY resignation_date DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `;
 
-      // 转换数据
+      console.log('执行离职监控查询SQL:', dataSql)
+      console.log('执行离职监控查询参数:', params)
+      const [rows] = await connection.execute(dataSql, params);
+
+      // 转换数据格式
       const transformedRows = rows.map(row => ({
         ...row,
-        work_age_group: transformWorkAge(row.work_age_months),
-        education_group: transformEducation(row.education),
-        organization_region: transformRegion(row.region)
+        birth_date: row.birth_date ? new Date(row.birth_date).toISOString().split('T')[0] : null,
+        entry_date: row.entry_date ? new Date(row.entry_date).toISOString().split('T')[0] : null,
+        actual_regularization_date: row.actual_regularization_date ? new Date(row.actual_regularization_date).toISOString().split('T')[0] : null,
+        contract_end_date: row.contract_end_date ? new Date(row.contract_end_date).toISOString().split('T')[0] : null,
+        graduation_date: row.graduation_date ? new Date(row.graduation_date).toISOString().split('T')[0] : null,
+        resignation_date: row.resignation_date ? new Date(row.resignation_date).toISOString().split('T')[0] : null
       }));
 
       res.json({
@@ -358,6 +326,133 @@ router.get('/resignation', async (req, res) => {
   } catch (error) {
     console.error('获取离职监控数据失败:', error);
     res.status(500).json({ error: '获取离职监控数据失败' });
+  }
+});
+
+/**
+ * 导出离职监控数据
+ */
+router.get('/resignation/export', async (req, res) => {
+  try {
+    const { region, department, name, resignationType } = req.query;
+    console.log('收到离职监控导出请求:', { region, department, name, resignationType });
+
+    const pool = req.pool;
+    const connection = await pool.getConnection();
+
+    try {
+      // 构建WHERE条件
+      let whereConditions = [];
+      let params = [];
+
+      if (region) {
+        whereConditions.push('region LIKE ?');
+        params.push(`%${region}%`);
+      }
+
+      if (department) {
+        whereConditions.push('department LIKE ?');
+        params.push(`%${department}%`);
+      }
+
+      if (name) {
+        whereConditions.push('name LIKE ?');
+        params.push(`%${name}%`);
+      }
+
+      if (resignationType) {
+        whereConditions.push('resignation_type LIKE ?');
+        params.push(`%${resignationType}%`);
+      }
+
+      const whereClause = whereConditions.length > 0 ?
+        `WHERE ${whereConditions.join(' AND ')}` : '';
+
+      // 查询resignation_monitoring表的所有字段
+      const dataSql = `
+        SELECT *
+        FROM resignation_monitoring
+        ${whereClause}
+        ORDER BY resignation_date DESC
+      `;
+
+      console.log('导出离职SQL:', dataSql)
+      console.log('导出离职参数:', params)
+      const [rows] = await connection.execute(dataSql, params);
+
+      // 直接返回resignation_monitoring表的所有数据，稳健格式化日期字段
+      const safeFormatDate = (val) => {
+        if (!val) return '';
+        try {
+          const d = new Date(val);
+          if (isNaN(d.getTime())) return '';
+          return d.toISOString().split('T')[0];
+        } catch (e) {
+          return '';
+        }
+      };
+
+      const exportData = rows.map(row => ({
+        序列: row.sequence_number || '',
+        区域: row.region || '',
+        部门: row.department || '',
+        岗位: row.position || '',
+        名字: row.name || '',
+        性别: row.gender || '',
+        民族: row.ethnicity || '',
+        政治面貌: row.political_status || '',
+        员工性质: row.employee_type || '',
+        险种: row.insurance_type || '',
+        出生日期: safeFormatDate(row.birth_date),
+        生日: row.birthday || '',
+        入职时间: safeFormatDate(row.entry_date),
+        实际转正日期: safeFormatDate(row.actual_regularization_date),
+        备注: row.remarks || '',
+        合同终止日期: safeFormatDate(row.contract_end_date),
+        '工龄（月）': (row.work_age_months ?? '').toString(),
+        身份证号: row.id_card_number || '',
+        身份证地址: row.id_card_address || '',
+        年龄: (row.age ?? '').toString(),
+        籍贯: row.hometown || '',
+        毕业院校: row.graduation_school || '',
+        专业: row.major || '',
+        学历: row.education || '',
+        教育方式: row.education_method || '',
+        毕业日期: safeFormatDate(row.graduation_date),
+        面试官姓名: row.interviewer_name || '',
+        婚姻状况: row.marital_status || '',
+        现居住地: row.current_address || '',
+        本人联系方式: row.personal_contact || '',
+        紧急联系人姓名: row.emergency_contact_name || '',
+        紧急联系人电话: row.emergency_contact_phone || '',
+        银行卡号: row.bank_card_number || '',
+        详细支行信息: row.bank_branch_info || '',
+        '劳动关系隶属(*)': row.labor_relation_affiliation || '',
+        '社保隶属(*)': row.social_insurance_affiliation || '',
+        竞业协议: row.non_compete_agreement || '',
+        保密协议: row.confidentiality_agreement || '',
+        离职时间: safeFormatDate(row.resignation_date),
+        离职类型: row.resignation_type || '',
+        离职原因: row.resignation_reason || '',
+        离职备注: row.resignation_remarks || '',
+        备注1: row.remarks1 || '',
+        备注2: row.remarks2 || '',
+        创建时间: safeFormatDate(row.created_at),
+        更新时间: safeFormatDate(row.updated_at)
+      }));
+
+      res.json({
+        success: true,
+        data: exportData,
+        total: exportData.length
+      });
+
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('导出离职监控数据失败:', error);
+    res.status(500).json({ error: '导出离职监控数据失败', message: error.message });
   }
 });
 
@@ -400,22 +495,41 @@ router.get('/changes', async (req, res) => {
       const [countResult] = await connection.execute(countSql, params);
       const total = countResult[0].total;
 
-      // 获取分页数据
-      const offset = (page - 1) * pageSize;
+      // 获取分页数据（内联 LIMIT/OFFSET，避免部分 MySQL 版本对绑定参数的限制）
+      const limit = Number.parseInt(pageSize, 10) || 20;
+      const offset = (Number.parseInt(page, 10) - 1) * limit;
       const dataSql = `
         SELECT
-          id, employee_id, department, name, original_position, new_position,
-          change_date, change_type, change_remarks, created_at, updated_at
+          department, name, original_position, new_position,
+          change_date, change_reason,
+          remarks AS change_remarks
         FROM personnel_changes
         ${whereClause}
-        ORDER BY change_date DESC, created_at DESC
-        LIMIT ? OFFSET ?
+        ORDER BY change_date DESC
+        LIMIT ${limit} OFFSET ${offset}
       `;
 
-      const [rows] = await connection.execute(dataSql, [...params, parseInt(pageSize), offset]);
+      console.log('查询人员异动 SQL:', dataSql);
+      console.log('查询人员异动 参数:', params);
+      const [rows] = await connection.execute(dataSql, params);
+
+      // 格式化日期为 YYYY-MM-DD（本地时区），去掉时分秒
+      const formatted = rows.map(r => {
+        let cd = r.change_date;
+        if (cd) {
+          const d = new Date(cd);
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, '0');
+          const da = String(d.getDate()).padStart(2, '0');
+          cd = `${y}-${m}-${da}`;
+        } else {
+          cd = null;
+        }
+        return { ...r, change_date: cd };
+      });
 
       res.json({
-        data: rows,
+        data: formatted,
         total,
         page: parseInt(page),
         pageSize: parseInt(pageSize),
@@ -427,6 +541,76 @@ router.get('/changes', async (req, res) => {
   } catch (error) {
     console.error('获取人员异动数据失败:', error);
     res.status(500).json({ error: '获取人员异动数据失败' });
+  }
+});
+
+/**
+ * 导出人员异动数据
+ */
+router.get('/changes/export', async (req, res) => {
+  try {
+    const { department, name, changeType } = req.query;
+    console.log('收到人员异动导出请求:', { department, name, changeType });
+
+    const pool = req.pool;
+    const connection = await pool.getConnection();
+
+    try {
+      // 构建WHERE条件
+      let whereConditions = [];
+      let params = [];
+
+      if (department) {
+        whereConditions.push('department LIKE ?');
+        params.push(`%${department}%`);
+      }
+
+      if (name) {
+        whereConditions.push('name LIKE ?');
+        params.push(`%${name}%`);
+      }
+
+      if (changeType) {
+        whereConditions.push('change_reason LIKE ?');
+        params.push(`%${changeType}%`);
+      }
+
+      const whereClause = whereConditions.length > 0 ?
+        `WHERE ${whereConditions.join(' AND ')}` : '';
+
+      // 查询personnel_changes表的所有字段
+      const dataSql = `
+        SELECT *
+        FROM personnel_changes
+        ${whereClause}
+        ORDER BY change_date DESC
+      `;
+
+      const [rows] = await connection.execute(dataSql, params);
+
+      // 将personnel_changes转成中文列名
+      const exportData = rows.map(row => ({
+        部门: row.department || '',
+        姓名: row.name || '',
+        原岗位: row.original_position || '',
+        新岗位: row.new_position || '',
+        异动时间: row.change_date ? new Date(row.change_date).toISOString().split('T')[0] : '',
+        异动原因: row.change_reason || '',
+        备注: row.remarks || ''
+      }));
+
+      res.json({
+        success: true,
+        data: exportData,
+        total: exportData.length
+      });
+
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('导出人员异动数据失败:', error);
+    res.status(500).json({ error: '导出人员异动数据失败' });
   }
 });
 
@@ -561,97 +745,51 @@ router.get('/roster/export', async (req, res) => {
     const connection = await pool.getConnection();
 
     try {
-      // 构建WHERE条件（与查询接口相同）
+      // 构建WHERE条件（与查询接口相同，直接查employee_roster表）
       let whereConditions = [];
       let queryParams = [];
 
       if (name && name.trim()) {
-        whereConditions.push('ebi.name LIKE ?');
+        whereConditions.push('name LIKE ?');
         queryParams.push(`%${name.trim()}%`);
       }
 
       if (department && department.trim()) {
-        whereConditions.push('sd.department LIKE ?');
+        whereConditions.push('department LIKE ?');
         queryParams.push(`%${department.trim()}%`);
       }
 
       if (position && position.trim()) {
-        whereConditions.push('sp.position LIKE ?');
+        whereConditions.push('position LIKE ?');
         queryParams.push(`%${position.trim()}%`);
       }
 
       if (region && region.trim()) {
-        whereConditions.push('sr.region LIKE ?');
+        whereConditions.push('region LIKE ?');
         queryParams.push(`%${region.trim()}%`);
       }
 
-      const whereClause = whereConditions.length > 0 ? 'AND ' + whereConditions.join(' AND ') : '';
+      const whereClause = whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : '';
 
-      // 查询所有符合条件的数据
+      // 查询所有符合条件的数据（直接从employee_roster表）
       const dataSql = `
         SELECT
-          ROW_NUMBER() OVER (ORDER BY epi.entry_date DESC) as sequence_number,
-          sr.region,
-          sd.department,
-          sp.position,
-          ebi.name,
-          ebi.gender,
-          '汉族' as ethnicity,
-          sps.political_status,
-          CASE epi.employee_type
-            WHEN 1 THEN '正式'
-            WHEN 2 THEN '试用'
-            WHEN 3 THEN '实习'
-            ELSE '未知'
-          END as employee_type,
-          CASE epi.insurance_type
-            WHEN 1 THEN '社保'
-            WHEN 2 THEN '工伤'
-            ELSE '无'
-          END as insurance_type,
-          ebi.birth_date,
-          DATE_FORMAT(ebi.birth_date, '%m-%d') as birthday,
-          epi.entry_date,
-          epi.actual_regularization_date,
-          epi.remarks,
-          epi.contract_end_date,
-          TIMESTAMPDIFF(MONTH, epi.entry_date, CURDATE()) as work_age_months,
-          ebi.id_number as id_card_number,
-          ebi.id_address as id_card_address,
-          TIMESTAMPDIFF(YEAR, ebi.birth_date, CURDATE()) as age,
-          ebi.native_place as hometown,
-          ebi.graduation_school,
-          ebi.major,
-          se.education,
-          sem.education_mode as education_method,
-          ebi.graduation_date,
-          ebi.interviewer_name,
-          sms.marital_status,
-          ebi.current_address,
-          ebi.phone_number as personal_contact,
-          ebi.emergency_contact_name,
-          ebi.emergency_contact_phone,
-          ebi.bank_account as bank_card_number,
-          ebi.bank_branch as bank_branch_info,
-          '' as labor_relationship,
-          '' as social_security_affiliation,
-          '' as non_compete_agreement,
-          '' as confidentiality_agreement,
-          '' as remarks1,
-          '' as remarks2
-        FROM employee_basic_info ebi
-        JOIN employee_position_info epi ON ebi.id = epi.employee_id
-        LEFT JOIN sys_region sr ON epi.region_id = sr.id
-        LEFT JOIN sys_department sd ON epi.department_id = sd.id
-        LEFT JOIN sys_position sp ON epi.position_id = sp.id
-        LEFT JOIN sys_education se ON ebi.education_id = se.id
-        LEFT JOIN sys_education_mode sem ON ebi.education_mode_id = sem.id
-        LEFT JOIN sys_political_status sps ON ebi.political_status_id = sps.id
-        LEFT JOIN sys_marital_status sms ON ebi.marital_status_id = sms.id
-        WHERE 1=1 ${whereClause}
-        ORDER BY epi.entry_date DESC
+          sequence_number, region, department, position, name, gender, ethnicity,
+          political_status, employee_type, insurance_type, birth_date, birthday,
+          entry_date, actual_regularization_date, remarks, contract_end_date,
+          work_age_months, id_card_number, id_card_address, age, hometown,
+          graduation_school, major, education, education_method, graduation_date,
+          interviewer_name, marital_status, current_address, personal_contact,
+          emergency_contact_name, emergency_contact_phone, bank_card_number,
+          bank_branch_info, labor_relation_affiliation, social_insurance_affiliation,
+          non_compete_agreement, confidentiality_agreement, remarks1, remarks2
+        FROM employee_roster
+        ${whereClause}
+        ORDER BY entry_date DESC
       `;
 
+      console.log('导出查询SQL:', dataSql);
+      console.log('导出查询参数:', queryParams);
       const [rows] = await connection.execute(dataSql, queryParams);
 
       // 格式化数据
@@ -690,12 +828,12 @@ router.get('/roster/export', async (req, res) => {
         紧急联系人电话: row.emergency_contact_phone || '',
         银行卡号: row.bank_card_number || '',
         详细支行信息: row.bank_branch_info || '',
-        '劳动关系隶属(*)': row.labor_relationship,
-        '社保隶属(*)': row.social_security_affiliation,
-        竞业协议: row.non_compete_agreement,
-        保密协议: row.confidentiality_agreement,
-        备注1: row.remarks1,
-        备注2: row.remarks2
+        '劳动关系隶属(*)': row.labor_relation_affiliation || '',
+        '社保隶属(*)': row.social_insurance_affiliation || '',
+        竞业协议: row.non_compete_agreement || '',
+        保密协议: row.confidentiality_agreement || '',
+        备注1: row.remarks1 || '',
+        备注2: row.remarks2 || ''
       }));
 
       res.json({
@@ -719,7 +857,7 @@ router.get('/roster/export', async (req, res) => {
 });
 
 /**
- * Excel导入员工数据
+ * Excel导入员工数据 - 直接导入到employee_roster表
  */
 router.post('/roster/import', upload.single('file'), async (req, res) => {
   try {
@@ -736,6 +874,9 @@ router.post('/roster/import', upload.single('file'), async (req, res) => {
     const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
     console.log('Excel解析完成，共', jsonData.length, '行数据');
+    if (jsonData.length > 0) {
+      console.log('Excel数据示例（第一行）:', jsonData[0]);
+    }
 
     if (jsonData.length === 0) {
       return res.status(400).json({ success: false, error: 'Excel文件中没有数据' });
@@ -755,67 +896,120 @@ router.post('/roster/import', upload.single('file'), async (req, res) => {
         const row = jsonData[i];
 
         try {
-          // 验证必填字段
-          if (!row['名字'] || !row['入职时间']) {
-            errors.push(`第${i + 2}行：缺少必填字段（名字、入职时间）`);
+          // 验证必填字段 - 支持多种列名格式
+          const name = row['姓名'] || row['名字'] || row['name'];
+          if (!name) {
+            errors.push(`第${i + 2}行：缺少必填字段（姓名）`);
             errorCount++;
             continue;
           }
 
-          // 1. 插入员工基本信息
-          const basicInfoSql = `
-            INSERT INTO employee_basic_info (
-              name, gender, birth_date, native_place, id_number, id_address,
-              current_address, phone_number, emergency_contact_name, emergency_contact_phone,
-              bank_account, bank_branch, graduation_school, major, graduation_date,
-              interviewer_name, education_id, education_mode_id, political_status_id, marital_status_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          // 直接插入employee_roster表
+          const insertSql = `
+            INSERT INTO employee_roster (
+              sequence_number, region, department, position, name, gender, ethnicity,
+              political_status, employee_type, insurance_type, birth_date, birthday,
+              entry_date, actual_regularization_date, remarks, contract_end_date,
+              work_age_months, id_card_number, id_card_address, age, hometown,
+              graduation_school, major, education, education_method, graduation_date,
+              interviewer_name, marital_status, current_address, personal_contact,
+              emergency_contact_name, emergency_contact_phone, bank_card_number,
+              bank_branch_info, labor_relation_affiliation, social_insurance_affiliation,
+              non_compete_agreement, confidentiality_agreement, remarks1, remarks2
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `;
 
-          const [basicResult] = await connection.execute(basicInfoSql, [
-            row['名字'],
-            row['性别'] === '男' ? 'M' : (row['性别'] === '女' ? 'F' : 'O'),
-            parseDate(row['出生日期']),
-            row['籍贯'] || null,
+          // 辅助函数：解析日期
+          const parseExcelDate = (dateValue) => {
+            if (!dateValue) return null;
+            try {
+              // 如果是Excel序列号
+              if (typeof dateValue === 'number') {
+                const date = new Date((dateValue - 25569) * 86400 * 1000);
+                return date.toISOString().split('T')[0];
+              }
+              // 如果是字符串日期
+              const date = new Date(dateValue);
+              return isNaN(date.getTime()) ? null : date.toISOString().split('T')[0];
+            } catch (e) {
+              return null;
+            }
+          };
+
+          // 计算年龄
+          const calcAge = (birthDate) => {
+            if (!birthDate) return null;
+            try {
+              const birth = new Date(birthDate);
+              const today = new Date();
+              let age = today.getFullYear() - birth.getFullYear();
+              const monthDiff = today.getMonth() - birth.getMonth();
+              if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+                age--;
+              }
+              return age;
+            } catch (e) {
+              return null;
+            }
+          };
+
+          // 计算工龄月数
+          const calcWorkMonths = (entryDate) => {
+            if (!entryDate) return null;
+            try {
+              const entry = new Date(entryDate);
+              const today = new Date();
+              const months = (today.getFullYear() - entry.getFullYear()) * 12 + (today.getMonth() - entry.getMonth());
+              return Math.max(0, months);
+            } catch (e) {
+              return null;
+            }
+          };
+
+          const entryDate = parseExcelDate(row['入职时间'] || row['入职日期']);
+          const birthDate = parseExcelDate(row['出生日期'] || row['生日']);
+
+          await connection.execute(insertSql, [
+            row['序号'] || null,
+            row['区域'] || null,
+            row['部门'] || null,
+            row['岗位'] || row['职位'] || null,
+            name,
+            row['性别'] || null,
+            row['民族'] || null,
+            row['政治面貌'] || null,
+            row['员工性质'] || null,
+            row['险种'] || null,
+            birthDate,
+            parseExcelDate(row['生日']),
+            entryDate,
+            parseExcelDate(row['实际转正日期']),
+            row['备注'] || null,
+            parseExcelDate(row['合同终止日期']),
+            calcWorkMonths(entryDate),
             row['身份证号'] || null,
             row['身份证地址'] || null,
+            calcAge(birthDate),
+            row['籍贯'] || row['家乡'] || null,
+            row['毕业院校'] || null,
+            row['专业'] || null,
+            row['学历'] || null,
+            row['教育方式'] || null,
+            parseExcelDate(row['毕业日期']),
+            row['面试官姓名'] || null,
+            row['婚姻状况'] || null,
             row['现居住地'] || null,
             row['本人联系方式'] || null,
             row['紧急联系人姓名'] || null,
             row['紧急联系人电话'] || null,
             row['银行卡号'] || null,
             row['详细支行信息'] || null,
-            row['毕业院校'] || null,
-            row['专业'] || null,
-            parseDate(row['毕业日期']),
-            row['面试官姓名'] || null,
-            await getOrCreateSystemId(connection, 'sys_education', 'education', row['学历']),
-            await getOrCreateSystemId(connection, 'sys_education_mode', 'education_mode', row['教育方式']),
-            await getOrCreateSystemId(connection, 'sys_political_status', 'political_status', row['政治面貌']),
-            await getOrCreateSystemId(connection, 'sys_marital_status', 'marital_status', row['婚姻状况'])
-          ]);
-
-          const employeeId = basicResult.insertId;
-
-          // 2. 插入员工职位信息
-          const positionInfoSql = `
-            INSERT INTO employee_position_info (
-              employee_id, region_id, department_id, position_id, employee_type,
-              insurance_type, entry_date, actual_regularization_date, contract_end_date, remarks
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `;
-
-          await connection.execute(positionInfoSql, [
-            employeeId,
-            await getOrCreateSystemId(connection, 'sys_region', 'region', row['区域']),
-            await getOrCreateSystemId(connection, 'sys_department', 'department', row['部门']),
-            await getOrCreateSystemId(connection, 'sys_position', 'position', row['岗位']),
-            parseEmployeeType(row['员工性质']),
-            parseInsuranceType(row['险种']),
-            parseDate(row['入职时间']),
-            parseDate(row['实际转正日期']),
-            parseDate(row['合同终止日期']),
-            row['备注'] || null
+            row['劳动关系归属'] || null,
+            row['社保归属'] || null,
+            row['竞业协议'] || null,
+            row['保密协议'] || null,
+            row['备注1'] || null,
+            row['备注2'] || null
           ]);
 
           successCount++;
@@ -1007,11 +1201,11 @@ router.post('/resignation', async (req, res) => {
           interviewer_name, marital_status, current_address, personal_contact,
           emergency_contact_name, emergency_contact_phone, bank_card_number,
           bank_branch_info, labor_relation_affiliation, social_insurance_affiliation,
-          non_compete_agreement, confidentiality_agreement, remarks1, remarks2,
+          non_compete_agreement, confidentiality_agreement,
           resignation_date, resignation_type, resignation_reason, resignation_remarks
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?)
       `;
-
+      const resignation_date = new Date(resignationData.resignation_date).toISOString().split('T')[0]
       await connection.execute(insertResignationSql, [
         employee.sequence_number, employee.region, employee.department, employee.position,
         employee.name, employee.gender, employee.ethnicity, employee.political_status,
@@ -1024,8 +1218,8 @@ router.post('/resignation', async (req, res) => {
         employee.personal_contact, employee.emergency_contact_name, employee.emergency_contact_phone,
         employee.bank_card_number, employee.bank_branch_info, employee.labor_relation_affiliation,
         employee.social_insurance_affiliation, employee.non_compete_agreement,
-        employee.confidentiality_agreement, employee.remarks1, employee.remarks2,
-        resignationData.resignation_date, resignationData.resignation_type,
+        employee.confidentiality_agreement,
+        resignation_date, resignationData.resignation_type,
         resignationData.resignation_reason, resignationData.resignation_remarks
       ]);
 
@@ -1075,20 +1269,20 @@ router.post('/transfer', async (req, res) => {
       // 1. 插入调动记录到人员异动表
       const insertTransferSql = `
         INSERT INTO personnel_changes (
-          employee_id, department, name, original_position, new_position,
-          change_date, change_type, change_remarks
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          department, name, original_position, new_position,
+          change_date, change_reason, remarks
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
       `;
-
+      const change_date =new Date(transferData.change_date).toISOString().split('T')[0]
       await connection.execute(insertTransferSql, [
-        transferData.employeeId,
         transferData.department,
         transferData.name,
         transferData.original_position,
         transferData.new_position,
-        transferData.change_date,
-        transferData.change_type,
-        transferData.change_remarks
+        change_date,
+        // 兼容前端可能传入的 change_type 或 change_reason
+        transferData.change_reason || transferData.change_type,
+        transferData.remarks || transferData.change_remarks
       ]);
 
       // 2. 更新花名册中的岗位信息（如果是岗位调动）
@@ -1121,6 +1315,164 @@ router.post('/transfer', async (req, res) => {
   } catch (error) {
     console.error('调动操作失败:', error);
     res.status(500).json({ error: error.message || '调动操作失败' });
+  }
+});
+
+/**
+ * 删除离职记录
+ */
+router.delete('/resignation/:id', async (req, res) => {
+  try {
+    const recordId = req.params.id;
+    console.log('收到删除离职记录请求:', recordId);
+
+    const pool = req.pool;
+    const connection = await pool.getConnection();
+
+    try {
+      const deleteSql = `DELETE FROM resignation_monitoring WHERE id = ?`;
+      const [result] = await connection.execute(deleteSql, [recordId]);
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ error: '离职记录不存在' });
+      }
+
+      res.json({
+        success: true,
+        message: '离职记录删除成功'
+      });
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('删除离职记录失败:', error);
+    res.status(500).json({ error: '删除离职记录失败' });
+  }
+});
+
+/**
+ * 更新离职记录
+ */
+router.put('/resignation/:id', async (req, res) => {
+  try {
+    const recordId = req.params.id;
+    const updateData = req.body;
+    console.log('收到更新离职记录请求:', { recordId, updateData });
+
+    const pool = req.pool;
+    const connection = await pool.getConnection();
+
+    try {
+      const updateSql = `
+        UPDATE resignation_monitoring
+        SET resignation_date = ?, resignation_type = ?, resignation_reason = ?, resignation_remarks = ?
+        WHERE id = ?
+      `;
+
+      const resignation_date = new Date(updateData.resignation_date).toISOString().split('T')[0]
+      const [result] = await connection.execute(updateSql, [
+        resignation_date,
+        updateData.resignation_type,
+        updateData.resignation_reason,
+        updateData.resignation_remarks,
+        recordId
+      ]);
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ error: '离职记录不存在' });
+      }
+
+      res.json({
+        success: true,
+        message: '离职记录更新成功'
+      });
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('更新离职记录失败:', error);
+    res.status(500).json({ error: '更新离职记录失败' });
+  }
+});
+
+/**
+ * 更新异动记录（使用组合键，因为表没有主键id）
+ */
+router.put('/changes', async (req, res) => {
+  try {
+    const { updateKey, ...updateData } = req.body;
+    console.log('收到更新异动记录请求:', { updateKey, updateData });
+
+    const pool = req.pool;
+    const connection = await pool.getConnection();
+
+    try {
+      const updateSql = `
+        UPDATE personnel_changes
+        SET department = ?, name = ?, original_position = ?, new_position = ?,
+            change_date = ?, change_reason = ?, remarks = ?
+        WHERE department = ? AND name = ? AND change_date = ?
+      `;
+
+      const [result] = await connection.execute(updateSql, [
+        updateData.department,
+        updateData.name,
+        updateData.original_position,
+        updateData.new_position,
+        updateData.change_date,
+        updateData.change_reason,
+        updateData.remarks,
+        updateKey.originalDepartment,
+        updateKey.originalName,
+        updateKey.originalDate
+      ]);
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ error: '异动记录不存在' });
+      }
+
+      res.json({
+        success: true,
+        message: '异动记录更新成功'
+      });
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('更新异动记录失败:', error);
+    res.status(500).json({ error: '更新异动记录失败' });
+  }
+});
+
+/**
+ * 删除异动记录（使用组合键，因为表没有主键id）
+ */
+router.delete('/changes', async (req, res) => {
+  try {
+    const { department, name, change_date } = req.body;
+    console.log('收到删除异动记录请求:', { department, name, change_date });
+
+    const pool = req.pool;
+    const connection = await pool.getConnection();
+
+    try {
+      const deleteSql = `DELETE FROM personnel_changes WHERE department = ? AND name = ? AND change_date = ?`;
+      const [result] = await connection.execute(deleteSql, [department, name, change_date]);
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ error: '异动记录不存在' });
+      }
+
+      res.json({
+        success: true,
+        message: '异动记录删除成功'
+      });
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('删除异动记录失败:', error);
+    res.status(500).json({ error: '删除异动记录失败' });
   }
 });
 

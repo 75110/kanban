@@ -152,10 +152,8 @@ const loading = ref(false)
 
 // 上传相关
 const uploadRef = ref()
-const uploadUrl = ref('http://localhost:3001/api/employee/roster/import')
-const uploadHeaders = ref({
-  'Content-Type': 'multipart/form-data'
-})
+const uploadUrl = ref('/api/employee/roster/import')  // 使用相对路径，让Vite代理处理
+const uploadHeaders = ref({})
 
 // 分页信息
 const pagination = reactive({
@@ -302,11 +300,21 @@ const beforeUpload = (file) => {
 
 // 上传成功
 const onUploadSuccess = (response) => {
-  if (response.success) {
-    ElMessage.success(response.message)
+  // 后端会返回 { success, message, successCount, errorCount, errors }
+  if (response?.success) {
+    if (response.errorCount && response.errorCount > 0) {
+      const details = (response.errors || []).map((e, i) => `${i + 1}. ${e}`).join('<br/>')
+      ElMessageBox.alert(
+        `成功：${response.successCount || 0} 条，失败：${response.errorCount} 条` + (details ? `<br/><br/>详情：<br/>${details}` : ''),
+        '导入完成',
+        { dangerouslyUseHTMLString: true }
+      )
+    } else {
+      ElMessage.success(response.message || '导入完成')
+    }
     fetchEmployeeData() // 刷新数据
   } else {
-    ElMessage.error(response.error || '上传失败')
+    ElMessage.error(response?.error || '上传失败')
   }
 }
 

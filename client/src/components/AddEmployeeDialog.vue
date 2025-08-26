@@ -345,6 +345,10 @@
     <template #footer>
       <div class="dialog-footer">
         <el-button @click="handleClose">取消</el-button>
+        <el-button @click="handlePasteFromClipboard" :loading="pasteLoading">
+          <el-icon><DocumentCopy /></el-icon>
+          从剪贴板导入
+        </el-button>
         <el-button type="primary" @click="handleSubmit" :loading="loading">
           确定
         </el-button>
@@ -355,7 +359,8 @@
 
 <script setup>
 import { ref, reactive, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { DocumentCopy } from '@element-plus/icons-vue'
 import { employeeApi } from '@/api'
 
 // Props
@@ -372,6 +377,7 @@ const emit = defineEmits(['update:visible', 'success'])
 // 响应式数据
 const dialogVisible = ref(false)
 const loading = ref(false)
+const pasteLoading = ref(false)
 const formRef = ref()
 
 // 表单数据
@@ -502,6 +508,105 @@ const calculateWorkAge = () => {
 // 关闭对话框
 const handleClose = () => {
   dialogVisible.value = false
+}
+
+// 从剪贴板导入数据
+const handlePasteFromClipboard = async () => {
+  try {
+    pasteLoading.value = true
+
+    // 读取剪贴板内容
+    const clipboardText = await navigator.clipboard.readText()
+    if (!clipboardText.trim()) {
+      ElMessage.warning('剪贴板为空')
+      return
+    }
+
+    // 解析剪贴板数据（支持制表符分隔）
+    const lines = clipboardText.trim().split('\n')
+    if (lines.length < 2) {
+      ElMessage.warning('剪贴板数据格式不正确，需要包含表头和数据行')
+      return
+    }
+
+    // 第一行是表头，第二行是数据
+    const headers = lines[0].split('\t').map(h => h.trim())
+    const values = lines[1].split('\t').map(v => v.trim())
+
+    console.log('解析到的表头:', headers)
+    console.log('解析到的数据:', values)
+
+    // 字段映射表（Excel列名 -> 表单字段名）
+    const fieldMapping = {
+      '序列': 'sequence_number',
+      '区域': 'region',
+      '部门': 'department',
+      '岗位': 'position',
+      '名字': 'name',
+      '姓名': 'name',
+      '性别': 'gender',
+      '民族': 'ethnicity',
+      '政治面貌': 'political_status',
+      '员工性质': 'employee_type',
+      '险种': 'insurance_type',
+      '出生日期': 'birth_date',
+      '生日': 'birthday',
+      '入职时间': 'entry_date',
+      '实际转正日期': 'actual_regularization_date',
+      '备注': 'remarks',
+      '合同终止日期': 'contract_end_date',
+      '工龄（月）': 'work_age_months',
+      '身份证号': 'id_card_number',
+      '身份证地址': 'id_card_address',
+      '年龄': 'age',
+      '籍贯': 'hometown',
+      '毕业院校': 'graduation_school',
+      '专业': 'major',
+      '学历': 'education',
+      '教育方式': 'education_method',
+      '毕业日期': 'graduation_date',
+      '面试官姓名': 'interviewer_name',
+      '婚姻状况': 'marital_status',
+      '现居住地': 'current_address',
+      '本人联系方式': 'personal_contact',
+      '紧急联系人姓名': 'emergency_contact_name',
+      '紧急联系人电话': 'emergency_contact_phone',
+      '银行卡号': 'bank_card_number',
+      '详细支行信息': 'bank_branch_info',
+      '劳动关系隶属(*)': 'labor_relation_affiliation',
+      '社保隶属(*)': 'social_insurance_affiliation',
+      '竞业协议': 'non_compete_agreement',
+      '保密协议': 'confidentiality_agreement',
+      '备注1': 'remarks1',
+      '备注2': 'remarks2'
+    }
+
+    // 按表头映射数据到表单
+    let mappedCount = 0
+    headers.forEach((header, index) => {
+      const fieldName = fieldMapping[header]
+      if (fieldName && values[index] !== undefined) {
+        const value = values[index] || ''
+        if (value) { // 只填充非空值
+          form[fieldName] = value
+          mappedCount++
+        }
+      }
+    })
+
+    if (mappedCount === 0) {
+      ElMessage.warning('未找到可映射的字段，请检查表头格式')
+      return
+    }
+
+    ElMessage.success(`成功导入 ${mappedCount} 个字段`)
+
+  } catch (error) {
+    console.error('剪贴板导入失败:', error)
+    ElMessage.error('剪贴板导入失败，请确保已复制表格数据')
+  } finally {
+    pasteLoading.value = false
+  }
 }
 
 // 提交表单

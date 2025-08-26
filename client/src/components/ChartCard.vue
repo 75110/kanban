@@ -1007,7 +1007,7 @@ const chartOption = computed(() => {
       },
       grid: {
         left: props.horizontal ? '2%' : '2%',
-        right: props.horizontal ? '2%' : '2%',
+        right: props.horizontal ? '1%' : '1%',
         top: '5%',
         bottom: props.horizontal ? '8%' : (labels.length > 8 ? '15%' : '8%'),
         containLabel: true
