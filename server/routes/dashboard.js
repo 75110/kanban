@@ -288,8 +288,32 @@ async function getCurrentStats(pool, { organizationRegion, region, department, w
   try {
     // 在职员工数（从employee_roster表统计）
     let totalResult;
-    if (year) {
-      // 选择年份（无论是否选月）：统计截止到该年末的累计在职人数
+    console.log('getCurrentStats - month parameter:', month, 'year parameter:', year);
+    if (month) {
+      // 选择了月份：统计截止到该月最后一天的累计在职人数
+      const currentYear = year || new Date().getFullYear();
+      const lastDayOfMonth = new Date(currentYear, parseInt(month), 0).getDate();
+      const cutoffDate = `${currentYear}-${month.toString().padStart(2, '0')}-${lastDayOfMonth}`;
+      console.log('计算在职人数截止日期:', cutoffDate);
+
+      const { where: baseWhere, params: baseParams } = buildWhere('er', {
+        organizationRegion, region, department, workAge, education, dateField: 'entry_date'
+      });
+      const conditions = [];
+      const params = [...baseParams];
+      if (baseWhere) {
+        conditions.push(baseWhere.replace('WHERE ', ''));
+      }
+      conditions.push('er.entry_date <= ?');
+      params.push(cutoffDate);
+      const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+      console.log('在职人数查询SQL:', `SELECT COUNT(*) as count FROM employee_roster er ${whereClause}`, 'params:', params);
+      [totalResult] = await connection.execute(
+        `SELECT COUNT(*) as count FROM employee_roster er ${whereClause}`,
+        params
+      );
+    } else if (year) {
+      // 只选择年份（未选月份）：统计截止到该年末的累计在职人数
       const { where: baseWhere, params: baseParams } = buildWhere('er', {
         organizationRegion, region, department, workAge, education, dateField: 'entry_date'
       });
@@ -306,7 +330,7 @@ async function getCurrentStats(pool, { organizationRegion, region, department, w
         params
       );
     } else {
-      // 未选择年份：统计全部在职员工
+      // 未选择年份和月份：统计全部在职员工
       const { where: totalWhereNoYear, params: totalParamsNoYear } = buildWhere('er', {
         organizationRegion, region, department, workAge, education, dateField: 'entry_date'
       });

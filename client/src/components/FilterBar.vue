@@ -70,6 +70,7 @@
         <el-select
           v-model="localFilters.year"
           placeholder="选择年份"
+          clearable
           size="default"
           @change="handleFilterChange"
         >

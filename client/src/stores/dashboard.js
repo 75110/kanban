@@ -79,9 +79,9 @@ export const useDashboardStore = defineStore("dashboard", {
         filters.department = state.chartFilters.department;
       }
 
-      // 移除空值
+      // 移除空值，但保留year和month（即使为空字符串也要传递给后端）
       Object.keys(filters).forEach((key) => {
-        if (!filters[key]) {
+        if (!filters[key] && key !== 'year' && key !== 'month') {
           delete filters[key];
         }
       });
