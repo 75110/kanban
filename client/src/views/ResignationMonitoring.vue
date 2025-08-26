@@ -5,11 +5,15 @@
       <h1 class="page-title">离职监控</h1>
       <div class="page-actions">
         <el-button type="primary" @click="handleAddResignation">
-          <el-icon><Plus /></el-icon>
+          <el-icon>
+            <Plus />
+          </el-icon>
           新增离职记录
         </el-button>
         <el-button @click="handleExport">
-          <el-icon><Download /></el-icon>
+          <el-icon>
+            <Download />
+          </el-icon>
           导出数据
         </el-button>
       </div>
@@ -19,25 +23,17 @@
     <div class="search-container">
       <div class="search-row">
         <div class="search-item">
-          <el-input
-            v-model="searchForm.name"
-            placeholder="请输入员工姓名"
-            clearable
-            @keyup.enter="handleSearch"
-          >
+          <el-input v-model="searchForm.name" placeholder="请输入员工姓名" clearable @keyup.enter="handleSearch">
             <template #prefix>
-              <el-icon><User /></el-icon>
+              <el-icon>
+                <User />
+              </el-icon>
             </template>
           </el-input>
         </div>
         <div class="search-item">
           <el-select v-model="searchForm.department" placeholder="选择部门" clearable>
-            <el-option
-              v-for="dept in departments"
-              :key="dept"
-              :label="dept"
-              :value="dept"
-            />
+            <el-option v-for="dept in departments" :key="dept.id" :label="dept.department" :value="dept.id" />
           </el-select>
         </div>
         <div class="search-item">
@@ -50,11 +46,15 @@
         </div>
         <div class="search-item">
           <el-button type="primary" @click="handleSearch">
-            <el-icon><Search /></el-icon>
+            <el-icon>
+              <Search />
+            </el-icon>
             搜索
           </el-button>
           <el-button @click="handleReset">
-            <el-icon><Refresh /></el-icon>
+            <el-icon>
+              <Refresh />
+            </el-icon>
             重置
           </el-button>
         </div>
@@ -63,14 +63,8 @@
 
     <!-- 数据表格 -->
     <div class="data-table">
-      <el-table
-        v-loading="loading"
-        :data="tableData"
-        stripe
-        border
-        style="width: 100%"
-        :default-sort="{ prop: 'resignation_date', order: 'descending' }"
-      >
+      <el-table v-loading="loading" :data="tableData" stripe border style="width: 100%"
+        :default-sort="{ prop: 'resignation_date', order: 'descending' }">
         <el-table-column prop="sequence_number" label="序列" width="80" />
         <el-table-column prop="name" label="姓名" width="100" fixed="left" />
         <el-table-column prop="department" label="部门" width="120" />
@@ -83,10 +77,7 @@
         <el-table-column prop="resignation_date" label="离职时间" width="120" sortable />
         <el-table-column prop="resignation_type" label="离职类型" width="100">
           <template #default="{ row }">
-            <el-tag
-              :type="getResignationTypeTag(row.resignation_type)"
-              size="small"
-            >
+            <el-tag :type="getResignationTypeTag(row.resignation_type)" size="small">
               {{ row.resignation_type }}
             </el-tag>
           </template>
@@ -108,30 +99,18 @@
 
       <!-- 分页 -->
       <div class="pagination-container">
-        <el-pagination
-          v-model:current-page="pagination.page"
-          v-model:page-size="pagination.pageSize"
-          :page-sizes="[10, 20, 50, 100]"
-          :total="pagination.total"
-          layout="total, sizes, prev, pager, next, jumper"
-          @size-change="handleSizeChange"
-          @current-change="handleCurrentChange"
-        />
+        <el-pagination v-model:current-page="pagination.page" v-model:page-size="pagination.pageSize"
+          :page-sizes="[10, 20, 50, 100]" :total="pagination.total" layout="total, sizes, prev, pager, next, jumper"
+          @size-change="handleSizeChange" @current-change="handleCurrentChange" />
       </div>
     </div>
 
     <!-- 新增离职记录对话框 -->
-    <AddResignationDialog
-      v-model:visible="addDialogVisible"
-      @success="handleAddSuccess"
-    />
+    <AddResignationDialog v-model:visible="addDialogVisible" @success="handleAddSuccess" />
 
     <!-- 编辑离职记录对话框 -->
-    <EditResignationDialog
-      v-model:visible="editDialogVisible"
-      :resignation-data="currentResignation"
-      @success="handleEditSuccess"
-    />
+    <EditResignationDialog v-model:visible="editDialogVisible" :resignation-data="currentResignation"
+      @success="handleEditSuccess" />
   </div>
 </template>
 
@@ -139,7 +118,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download, User, Search, Refresh } from '@element-plus/icons-vue'
-import { employeeApi } from '../api'
+import { employeeApi, dashboardApi } from '../api'
 import AddResignationDialog from '@/components/AddResignationDialog.vue'
 import EditResignationDialog from '@/components/EditResignationDialog.vue'
 
@@ -184,7 +163,7 @@ const fetchResignationData = async () => {
       pageSize: pagination.pageSize,
       ...searchForm
     }
-    
+
     const response = await employeeApi.getResignation(params)
     tableData.value = response.data
     pagination.total = response.total
@@ -313,6 +292,9 @@ const handleDelete = async (row) => {
 // 组件挂载时获取数据
 onMounted(() => {
   fetchResignationData()
+  dashboardApi.getFilterOptions().then(res => {
+    departments.value = res.departments
+  })
 })
 </script>
 
@@ -383,23 +365,23 @@ onMounted(() => {
   .resignation-monitoring {
     padding: 16px;
   }
-  
+
   .page-header {
     flex-direction: column;
     align-items: flex-start;
     gap: 16px;
   }
-  
+
   .search-row {
     flex-direction: column;
     align-items: stretch;
   }
-  
+
   .search-item {
     min-width: auto;
     width: 100%;
   }
-  
+
   .page-title {
     font-size: 20px;
   }
