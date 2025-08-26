@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const mysql = require('mysql2/promise');
+const path = require('path');
 
 // 加载环境变量
 dotenv.config();
@@ -12,6 +13,9 @@ const PORT = process.env.PORT || 3000;
 // 中间件
 app.use(cors());
 app.use(express.json());
+
+// 静态文件服务 - 提供前端构建文件
+app.use(express.static(path.join(__dirname, '../client/dist')));
 
 // 数据库连接配置
 const dbConfig = {
@@ -145,6 +149,16 @@ app.post('/api/sysPosition/list', async (req, res) => {
     console.error('获取岗位字典失败:', error);
     res.status(500).json({ error: error.message });
   }
+});
+
+// SPA路由处理 - 所有非API请求都返回index.html
+app.get('*', (req, res) => {
+  // 如果请求的是API路径，返回404
+  if (req.path.startsWith('/api/')) {
+    return res.status(404).json({ error: 'API路径不存在' });
+  }
+  // 其他所有请求都返回前端应用的index.html
+  res.sendFile(path.join(__dirname, '../client/dist/index.html'));
 });
 
 // 错误处理中间件
