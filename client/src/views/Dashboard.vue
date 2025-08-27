@@ -487,6 +487,45 @@ const exportDashboardAsPDF = async () => {
     pdf.addImage(dateCanvas.toDataURL('image/png'), 'PNG', (pageWidth - 120) / 2, currentY - 4, 120, 8)
     currentY += 14
 
+    // 添加筛选条件信息
+    const filters = dashboardStore.filters
+    const filterInfo = []
+
+    if (filters.organizationRegion) {
+      const orgRegion = dashboardStore.filterOptions.organizationRegions.find(r => r.id === filters.organizationRegion)
+      filterInfo.push(`组织区域: ${orgRegion?.region || filters.organizationRegion}`)
+    }
+
+    if (filters.region) {
+      const region = dashboardStore.filterOptions.regions.find(r => r.id === filters.region)
+      filterInfo.push(`区域: ${region?.region || filters.region}`)
+    }
+
+    if (filters.department) {
+      const dept = dashboardStore.filterOptions.departments.find(d => d.id === filters.department)
+      filterInfo.push(`部门: ${dept?.department || filters.department}`)
+    }
+
+    if (filters.year) {
+      filterInfo.push(`年份: ${filters.year}年`)
+    }
+
+    if (filters.month) {
+      filterInfo.push(`月份: ${filters.month}月`)
+    }
+
+    // 显示筛选条件
+    let filterText = ''
+    if (filterInfo.length > 0) {
+      filterText = `筛选条件: ${filterInfo.join(' | ')}`
+    } else {
+      filterText = '筛选条件: 全部数据'
+    }
+
+    const filterCanvas = createTextCanvas(filterText, 12, 800, 35)
+    pdf.addImage(filterCanvas.toDataURL('image/png'), 'PNG', (pageWidth - 140) / 2, currentY - 3, 140, 7)
+    currentY += 12
+
     // 选择当前页面的主要内容容器（总览或人才流失）
     const container = document.querySelector(
       activeTab.value === 'turnover' ? '.turnover-content' : '.overview-content'
@@ -548,9 +587,44 @@ const exportDashboardAsExcel = async () => {
     // 创建工作簿
     const workbook = XLSX.utils.book_new()
 
+    // 准备筛选条件信息
+    const filters = dashboardStore.filters
+    const filterInfo = []
+
+    if (filters.organizationRegion) {
+      const orgRegion = dashboardStore.filterOptions.organizationRegions.find(r => r.id === filters.organizationRegion)
+      filterInfo.push(`组织区域: ${orgRegion?.region || filters.organizationRegion}`)
+    }
+
+    if (filters.region) {
+      const region = dashboardStore.filterOptions.regions.find(r => r.id === filters.region)
+      filterInfo.push(`区域: ${region?.region || filters.region}`)
+    }
+
+    if (filters.department) {
+      const dept = dashboardStore.filterOptions.departments.find(d => d.id === filters.department)
+      filterInfo.push(`部门: ${dept?.department || filters.department}`)
+    }
+
+    if (filters.year) {
+      filterInfo.push(`年份: ${filters.year}年`)
+    }
+
+    if (filters.month) {
+      filterInfo.push(`月份: ${filters.month}月`)
+    }
+
+    const filterText = filterInfo.length > 0 ? filterInfo.join(' | ') : '全部数据'
+    const now = new Date()
+    const dateStr = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`
+
     // 添加统计数据工作表
     const stats = dashboardStore.stats
     const statsData = [
+      ['人事数据看板报告'],
+      [`生成时间: ${dateStr}`],
+      [`筛选条件: ${filterText}`],
+      [''],
       ['指标名称', '数值', '单位'],
       ['在职人数', stats.totalEmployees || 0, '人'],
       ['入职人数', stats.newEmployees || 0, '人'],
@@ -630,7 +704,6 @@ const exportDashboardAsExcel = async () => {
     }
 
     // 生成文件名
-    const now = new Date()
     const fileName = `人事数据看板报告_${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}.xlsx`
 
     // 导出文件
