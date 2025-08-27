@@ -69,23 +69,24 @@
     <!-- 数据表格 -->
     <div class="data-table">
       <el-table v-loading="loading" :data="tableData" stripe border style="width: 100%"
-        :default-sort="{ prop: 'entry_date', order: 'descending' }">
-        <el-table-column prop="sequence_number" label="序列" width="80" fixed="left" />
-        <el-table-column prop="name" label="姓名" width="100" fixed="left" />
-        <el-table-column prop="department" label="部门" width="120" />
-        <el-table-column prop="position" label="岗位" width="120" />
-        <el-table-column prop="gender" label="性别" width="80" />
-        <el-table-column prop="age" label="年龄" width="80" />
-        <el-table-column prop="education" label="学历" width="100" />
-        <el-table-column prop="work_age_months" label="工龄(月)" width="100" />
-        <el-table-column prop="entry_date" label="入职时间" width="120" sortable />
+        :default-sort="{ prop: 'entry_date', order: 'descending' }"
+        @sort-change="handleSortChange">
+        <el-table-column prop="sequence_number" label="序列" width="80" fixed="left" sortable="custom" />
+        <el-table-column prop="name" label="姓名" width="100" fixed="left" sortable="custom" />
+        <el-table-column prop="department" label="部门" width="120" sortable="custom" />
+        <el-table-column prop="position" label="岗位" width="120" sortable="custom" />
+        <el-table-column prop="gender" label="性别" width="80" sortable="custom" />
+        <el-table-column prop="age" label="年龄" width="80" sortable="custom" />
+        <el-table-column prop="education" label="学历" width="100" sortable="custom" />
+        <el-table-column prop="work_age_months" label="工龄(月)" width="100" sortable="custom" />
+        <el-table-column prop="entry_date" label="入职时间" width="120" sortable="custom" />
         <el-table-column prop="organization_region" label="组织区域" width="100" />
-        <el-table-column prop="region" label="区域" width="100" />
-        <el-table-column prop="employee_type" label="员工性质" width="100" />
-        <el-table-column prop="labor_relation_affiliation" label="劳动关系隶属" width="140" />
-        <el-table-column prop="social_insurance_affiliation" label="社保隶属" width="120" />
-        <el-table-column prop="marital_status" label="婚姻状况" width="100" />
-        <el-table-column prop="personal_contact" label="联系方式" width="120" />
+        <el-table-column prop="region" label="区域" width="100" sortable="custom" />
+        <el-table-column prop="employee_type" label="员工性质" width="100" sortable="custom" />
+        <el-table-column prop="labor_relation_affiliation" label="劳动关系隶属" width="140" sortable="custom" />
+        <el-table-column prop="social_insurance_affiliation" label="社保隶属" width="120" sortable="custom" />
+        <el-table-column prop="marital_status" label="婚姻状况" width="100" sortable="custom" />
+        <el-table-column prop="personal_contact" label="联系方式" width="120" sortable="custom" />
         <el-table-column label="操作" width="150" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" size="small" @click="handleEdit(row)">
@@ -150,6 +151,12 @@ const pagination = reactive({
   total: 0
 })
 
+// 排序信息
+const sortInfo = reactive({
+  sortField: 'entry_date',
+  sortOrder: 'desc'
+})
+
 // 获取员工数据
 const fetchEmployeeData = async () => {
   loading.value = true
@@ -157,6 +164,8 @@ const fetchEmployeeData = async () => {
     const params = {
       page: pagination.page,
       pageSize: pagination.pageSize,
+      sortField: sortInfo.sortField,
+      sortOrder: sortInfo.sortOrder,
       ...searchForm
     }
     const response = await employeeApi.getRoster(params)
@@ -206,6 +215,23 @@ const handleSizeChange = (size) => {
 // 当前页改变
 const handleCurrentChange = (page) => {
   pagination.page = page
+  fetchEmployeeData()
+}
+
+// 排序改变
+const handleSortChange = ({ prop, order }) => {
+  console.log('排序改变:', { prop, order })
+
+  if (prop && order) {
+    sortInfo.sortField = prop
+    sortInfo.sortOrder = order === 'ascending' ? 'asc' : 'desc'
+  } else {
+    // 取消排序，恢复默认
+    sortInfo.sortField = 'entry_date'
+    sortInfo.sortOrder = 'desc'
+  }
+
+  pagination.page = 1 // 排序时重置到第一页
   fetchEmployeeData()
 }
 

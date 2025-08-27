@@ -63,13 +63,14 @@
     <!-- 数据表格 -->
     <div class="data-table">
       <el-table v-loading="loading" :data="tableData" stripe border style="width: 100%"
-        :default-sort="{ prop: 'change_date', order: 'descending' }">
-        <el-table-column prop="department" label="部门" width="120" />
-        <el-table-column prop="name" label="姓名" width="100" fixed="left" />
-        <el-table-column prop="original_position" label="原岗位" width="150" />
-        <el-table-column prop="new_position" label="新岗位" width="150" />
-        <el-table-column prop="change_date" label="异动时间" width="120" sortable />
-        <el-table-column prop="change_reason" label="异动原因" width="120">
+        :default-sort="{ prop: 'change_date', order: 'descending' }"
+        @sort-change="handleSortChange">
+        <el-table-column prop="department" label="部门" width="120" sortable="custom" />
+        <el-table-column prop="name" label="姓名" width="100" fixed="left" sortable="custom" />
+        <el-table-column prop="original_position" label="原岗位" width="150" sortable="custom" />
+        <el-table-column prop="new_position" label="新岗位" width="150" sortable="custom" />
+        <el-table-column prop="change_date" label="异动时间" width="120" sortable="custom" />
+        <el-table-column prop="change_reason" label="异动原因" width="120" sortable="custom">
           <template #default="{ row }">
             <el-tag :type="getChangeTypeTag(row.change_reason)" size="small">
               {{ row.change_reason }}
@@ -135,6 +136,12 @@ const pagination = reactive({
   total: 0
 })
 
+// 排序信息
+const sortInfo = reactive({
+  sortField: 'change_date',
+  sortOrder: 'desc'
+})
+
 // 获取异动类型标签样式
 const getChangeTypeTag = (type) => {
   const tagMap = {
@@ -152,6 +159,8 @@ const fetchChangesData = async () => {
     const params = {
       page: pagination.page,
       pageSize: pagination.pageSize,
+      sortField: sortInfo.sortField,
+      sortOrder: sortInfo.sortOrder,
       ...searchForm
     }
 
@@ -190,6 +199,22 @@ const handleSizeChange = (size) => {
 // 当前页改变
 const handleCurrentChange = (page) => {
   pagination.page = page
+  fetchChangesData()
+}
+
+// 排序改变
+const handleSortChange = ({ prop, order }) => {
+  console.log('人员异动排序改变:', { prop, order })
+
+  if (prop && order) {
+    sortInfo.sortField = prop
+    sortInfo.sortOrder = order === 'ascending' ? 'asc' : 'desc'
+  } else {
+    sortInfo.sortField = 'change_date'
+    sortInfo.sortOrder = 'desc'
+  }
+
+  pagination.page = 1
   fetchChangesData()
 }
 

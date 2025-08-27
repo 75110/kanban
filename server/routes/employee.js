@@ -17,6 +17,79 @@ const upload = multer({
   }
 });
 
+// 构建排序子句的辅助函数
+function buildOrderClause(sortField, sortOrder) {
+  // 定义允许排序的字段映射
+  const allowedSortFields = {
+    'sequence_number': 'sequence_number',
+    'name': 'name',
+    'department': 'department',
+    'position': 'position',
+    'gender': 'gender',
+    'age': 'age',
+    'education': 'education',
+    'work_age_months': 'work_age_months',
+    'entry_date': 'entry_date',
+    'region': 'region',
+    'employee_type': 'employee_type',
+    'marital_status': 'marital_status',
+    'personal_contact': 'personal_contact',
+    'labor_relation_affiliation': 'labor_relation_affiliation',
+    'social_insurance_affiliation': 'social_insurance_affiliation'
+  };
+
+  // 验证排序字段
+  if (!sortField || !allowedSortFields[sortField]) {
+    return 'ORDER BY entry_date DESC'; // 默认排序
+  }
+
+  // 验证排序方向
+  const order = (sortOrder && sortOrder.toLowerCase() === 'asc') ? 'ASC' : 'DESC';
+
+  return `ORDER BY ${allowedSortFields[sortField]} ${order}`;
+}
+
+// 构建离职监控排序子句的辅助函数
+function buildResignationOrderClause(sortField, sortOrder) {
+  const allowedSortFields = {
+    'sequence_number': 'sequence_number',
+    'name': 'name',
+    'department': 'department',
+    'position': 'position',
+    'gender': 'gender',
+    'entry_date': 'entry_date',
+    'resignation_date': 'resignation_date',
+    'resignation_type': 'resignation_type',
+    'resignation_reason': 'resignation_reason'
+  };
+
+  if (!sortField || !allowedSortFields[sortField]) {
+    return 'ORDER BY resignation_date DESC';
+  }
+
+  const order = (sortOrder && sortOrder.toLowerCase() === 'asc') ? 'ASC' : 'DESC';
+  return `ORDER BY ${allowedSortFields[sortField]} ${order}`;
+}
+
+// 构建人员异动排序子句的辅助函数
+function buildPersonnelChangesOrderClause(sortField, sortOrder) {
+  const allowedSortFields = {
+    'department': 'department',
+    'name': 'name',
+    'original_position': 'original_position',
+    'new_position': 'new_position',
+    'change_date': 'change_date',
+    'change_reason': 'change_reason'
+  };
+
+  if (!sortField || !allowedSortFields[sortField]) {
+    return 'ORDER BY change_date DESC';
+  }
+
+  const order = (sortOrder && sortOrder.toLowerCase() === 'asc') ? 'ASC' : 'DESC';
+  return `ORDER BY ${allowedSortFields[sortField]} ${order}`;
+}
+
 /**
  * 获取员工花名册列表
  */
@@ -28,10 +101,12 @@ router.get('/roster', async (req, res) => {
       region,
       department,
       name,
-      position
+      position,
+      sortField,
+      sortOrder
     } = req.query;
 
-    console.log('收到员工花名册请求:', { page, pageSize, region, department, name, position });
+    console.log('收到员工花名册请求:', { page, pageSize, region, department, name, position, sortField, sortOrder });
 
     const pool = req.pool;
 
@@ -153,7 +228,7 @@ router.get('/roster', async (req, res) => {
           remarks2
         FROM employee_roster er
         ${whereClause}
-        ORDER BY entry_date DESC
+        ${buildOrderClause(sortField, sortOrder)}
         LIMIT ${parseInt(pageSize)} OFFSET ${parseInt(offset)}
       `;
 
@@ -174,11 +249,19 @@ router.get('/roster', async (req, res) => {
         const educationGroup = transformEducation(row.education);
         const organizationRegion = transformRegion(row.region);
 
-        // 格式化日期
+        // 格式化日期 - 避免时区转换问题
         const formatDate = (date) => {
           if (!date) return null;
           if (date instanceof Date) {
-            return date.toISOString().split('T')[0]; // YYYY-MM-DD 格式
+            // 使用本地时间格式化，避免时区转换
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+          }
+          if (typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            // 如果已经是YYYY-MM-DD格式，直接返回
+            return date;
           }
           return date;
         };
@@ -281,7 +364,9 @@ router.get('/resignation', async (req, res) => {
       region,
       department,
       name,
-      resignationType
+      resignationType,
+      sortField,
+      sortOrder
     } = req.query;
 
     console.log('收到离职监控请求:', { page, pageSize, region, department, name, resignationType });
@@ -331,7 +416,7 @@ router.get('/resignation', async (req, res) => {
           entry_date, resignation_date, resignation_type, resignation_reason, resignation_remarks
         FROM resignation_monitoring
         ${whereClause}
-        ORDER BY resignation_date DESC
+        ${buildResignationOrderClause(sortField, sortOrder)}
         LIMIT ${limit} OFFSET ${offset}
       `;
 
@@ -339,15 +424,30 @@ router.get('/resignation', async (req, res) => {
       console.log('执行离职监控查询参数:', params)
       const [rows] = await connection.execute(dataSql, params);
 
+      // 安全的日期格式化函数
+      const safeFormatDate = (date) => {
+        if (!date) return null;
+        if (date instanceof Date) {
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        }
+        if (typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          return date;
+        }
+        return date;
+      };
+
       // 转换数据格式
       const transformedRows = rows.map(row => ({
         ...row,
-        birth_date: row.birth_date ? new Date(row.birth_date).toISOString().split('T')[0] : null,
-        entry_date: row.entry_date ? new Date(row.entry_date).toISOString().split('T')[0] : null,
-        actual_regularization_date: row.actual_regularization_date ? new Date(row.actual_regularization_date).toISOString().split('T')[0] : null,
-        contract_end_date: row.contract_end_date ? new Date(row.contract_end_date).toISOString().split('T')[0] : null,
-        graduation_date: row.graduation_date ? new Date(row.graduation_date).toISOString().split('T')[0] : null,
-        resignation_date: row.resignation_date ? new Date(row.resignation_date).toISOString().split('T')[0] : null
+        birth_date: safeFormatDate(row.birth_date),
+        entry_date: safeFormatDate(row.entry_date),
+        actual_regularization_date: safeFormatDate(row.actual_regularization_date),
+        contract_end_date: safeFormatDate(row.contract_end_date),
+        graduation_date: safeFormatDate(row.graduation_date),
+        resignation_date: safeFormatDate(row.resignation_date)
       }));
 
       res.json({
@@ -423,7 +523,11 @@ router.get('/resignation/export', async (req, res) => {
         try {
           const d = new Date(val);
           if (isNaN(d.getTime())) return '';
-          return d.toISOString().split('T')[0];
+          // 使用本地时间格式化，避免时区转换
+          const year = d.getFullYear();
+          const month = String(d.getMonth() + 1).padStart(2, '0');
+          const day = String(d.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
         } catch (e) {
           return '';
         }
@@ -502,7 +606,9 @@ router.get('/changes', async (req, res) => {
       page = 1,
       pageSize = 20,
       department,
-      name
+      name,
+      sortField,
+      sortOrder
     } = req.query;
 
     console.log('收到人员异动请求:', { page, pageSize, department, name });
@@ -542,7 +648,7 @@ router.get('/changes', async (req, res) => {
           remarks AS change_remarks
         FROM personnel_changes
         ${whereClause}
-        ORDER BY change_date DESC
+        ${buildPersonnelChangesOrderClause(sortField, sortOrder)}
         LIMIT ${limit} OFFSET ${offset}
       `;
 
@@ -873,12 +979,32 @@ router.get('/roster/export', async (req, res) => {
           // 如果已经是字符串格式，直接返回
           return row.insurance_type;
         })(),
-        出生日期: row.birth_date ? new Date(row.birth_date).toISOString().split('T')[0] : '',
+        出生日期: (() => {
+          if (!row.birth_date) return '';
+          const d = new Date(row.birth_date);
+          if (isNaN(d.getTime())) return '';
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        })(),
         生日: row.birthday || '',
-        入职时间: row.entry_date ? new Date(row.entry_date).toISOString().split('T')[0] : '',
-        实际转正日期: row.actual_regularization_date ? new Date(row.actual_regularization_date).toISOString().split('T')[0] : '',
+        入职时间: (() => {
+          if (!row.entry_date) return '';
+          const d = new Date(row.entry_date);
+          if (isNaN(d.getTime())) return '';
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        })(),
+        实际转正日期: (() => {
+          if (!row.actual_regularization_date) return '';
+          const d = new Date(row.actual_regularization_date);
+          if (isNaN(d.getTime())) return '';
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        })(),
         备注: row.remarks || '',
-        合同终止日期: row.contract_end_date ? new Date(row.contract_end_date).toISOString().split('T')[0] : '',
+        合同终止日期: (() => {
+          if (!row.contract_end_date) return '';
+          const d = new Date(row.contract_end_date);
+          if (isNaN(d.getTime())) return '';
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        })(),
         '工龄（月）': row.work_age_months || 0,
         身份证号: row.id_card_number || '',
         身份证地址: row.id_card_address?.replace(/[\r\n]/g, '') || '',
@@ -888,7 +1014,12 @@ router.get('/roster/export', async (req, res) => {
         专业: row.major || '',
         学历: row.education || '',
         教育方式: row.education_method || '',
-        毕业日期: row.graduation_date ? new Date(row.graduation_date).toISOString().split('T')[0] : '',
+        毕业日期: (() => {
+          if (!row.graduation_date) return '';
+          const d = new Date(row.graduation_date);
+          if (isNaN(d.getTime())) return '';
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        })(),
         面试官姓名: row.interviewer_name || '',
         婚姻状况: row.marital_status || '',
         现居住地: row.current_address || '',
@@ -994,18 +1125,26 @@ router.post('/roster/import', upload.single('file'), async (req, res) => {
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `;
 
-          // 辅助函数：解析日期
+          // 辅助函数：解析日期 - 避免时区转换
           const parseExcelDate = (dateValue) => {
             if (!dateValue) return null;
             try {
+              let date;
               // 如果是Excel序列号
               if (typeof dateValue === 'number') {
-                const date = new Date((dateValue - 25569) * 86400 * 1000);
-                return date.toISOString().split('T')[0];
+                date = new Date((dateValue - 25569) * 86400 * 1000);
+              } else {
+                // 如果是字符串日期
+                date = new Date(dateValue);
               }
-              // 如果是字符串日期
-              const date = new Date(dateValue);
-              return isNaN(date.getTime()) ? null : date.toISOString().split('T')[0];
+
+              if (isNaN(date.getTime())) return null;
+
+              // 使用本地时间格式化，避免时区转换
+              const year = date.getFullYear();
+              const month = String(date.getMonth() + 1).padStart(2, '0');
+              const day = String(date.getDate()).padStart(2, '0');
+              return `${year}-${month}-${day}`;
             } catch (e) {
               return null;
             }
@@ -1123,25 +1262,28 @@ router.post('/roster/import', upload.single('file'), async (req, res) => {
   }
 });
 
-// 辅助函数：解析日期
+// 辅助函数：解析日期 - 避免时区转换
 function parseDate(dateStr) {
   if (!dateStr) return null;
 
+  let date;
   // 处理Excel日期格式
   if (typeof dateStr === 'number') {
     // Excel日期序列号转换
-    const date = new Date((dateStr - 25569) * 86400 * 1000);
-    return date.toISOString().split('T')[0];
+    date = new Date((dateStr - 25569) * 86400 * 1000);
+  } else if (typeof dateStr === 'string') {
+    date = new Date(dateStr);
+  } else {
+    return null;
   }
 
-  if (typeof dateStr === 'string') {
-    const date = new Date(dateStr);
-    if (!isNaN(date.getTime())) {
-      return date.toISOString().split('T')[0];
-    }
-  }
+  if (isNaN(date.getTime())) return null;
 
-  return null;
+  // 使用本地时间格式化，避免时区转换
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 // 辅助函数：解析员工类型
@@ -1369,7 +1511,16 @@ router.post('/resignation', async (req, res) => {
           resignation_date, resignation_type, resignation_reason, resignation_remarks
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?)
       `;
-      const resignation_date = new Date(resignationData.resignation_date).toISOString().split('T')[0]
+      // 安全格式化离职日期
+      const resignation_date = (() => {
+        if (!resignationData.resignation_date) return null;
+        const d = new Date(resignationData.resignation_date);
+        if (isNaN(d.getTime())) return null;
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      })();
       await connection.execute(insertResignationSql, [
         employee.sequence_number, employee.region, employee.department, employee.position,
         employee.name, employee.gender, employee.ethnicity, employee.political_status,

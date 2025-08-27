@@ -64,17 +64,18 @@
     <!-- 数据表格 -->
     <div class="data-table">
       <el-table v-loading="loading" :data="tableData" stripe border style="width: 100%"
-        :default-sort="{ prop: 'resignation_date', order: 'descending' }">
-        <el-table-column prop="sequence_number" label="序列" width="80" />
-        <el-table-column prop="name" label="姓名" width="100" fixed="left" />
-        <el-table-column prop="department" label="部门" width="120" />
-        <el-table-column prop="position" label="岗位" width="120" />
-        <el-table-column prop="gender" label="性别" width="80" />
+        :default-sort="{ prop: 'resignation_date', order: 'descending' }"
+        @sort-change="handleSortChange">
+        <el-table-column prop="sequence_number" label="序列" width="80" sortable="custom" />
+        <el-table-column prop="name" label="姓名" width="100" fixed="left" sortable="custom" />
+        <el-table-column prop="department" label="部门" width="120" sortable="custom" />
+        <el-table-column prop="position" label="岗位" width="120" sortable="custom" />
+        <el-table-column prop="gender" label="性别" width="80" sortable="custom" />
         <el-table-column prop="age" label="年龄" width="80" />
         <el-table-column prop="education_group" label="学历" width="100" />
         <el-table-column prop="work_age_group" label="工龄" width="100" />
-        <el-table-column prop="entry_date" label="入职时间" width="120" />
-        <el-table-column prop="resignation_date" label="离职时间" width="120" sortable />
+        <el-table-column prop="entry_date" label="入职时间" width="120" sortable="custom" />
+        <el-table-column prop="resignation_date" label="离职时间" width="120" sortable="custom" />
         <el-table-column prop="resignation_type" label="离职类型" width="100">
           <template #default="{ row }">
             <el-tag :type="getResignationTypeTag(row.resignation_type)" size="small">
@@ -143,6 +144,12 @@ const pagination = reactive({
   total: 0
 })
 
+// 排序信息
+const sortInfo = reactive({
+  sortField: 'resignation_date',
+  sortOrder: 'desc'
+})
+
 // 获取离职类型标签样式
 const getResignationTypeTag = (type) => {
   const tagMap = {
@@ -161,6 +168,8 @@ const fetchResignationData = async () => {
     const params = {
       page: pagination.page,
       pageSize: pagination.pageSize,
+      sortField: sortInfo.sortField,
+      sortOrder: sortInfo.sortOrder,
       ...searchForm
     }
 
@@ -199,6 +208,22 @@ const handleSizeChange = (size) => {
 // 当前页改变
 const handleCurrentChange = (page) => {
   pagination.page = page
+  fetchResignationData()
+}
+
+// 排序改变
+const handleSortChange = ({ prop, order }) => {
+  console.log('离职监控排序改变:', { prop, order })
+
+  if (prop && order) {
+    sortInfo.sortField = prop
+    sortInfo.sortOrder = order === 'ascending' ? 'asc' : 'desc'
+  } else {
+    sortInfo.sortField = 'resignation_date'
+    sortInfo.sortOrder = 'desc'
+  }
+
+  pagination.page = 1
   fetchResignationData()
 }
 

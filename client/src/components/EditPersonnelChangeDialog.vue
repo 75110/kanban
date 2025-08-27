@@ -162,10 +162,24 @@ const handleSubmit = async () => {
   try {
     loading.value = true
 
-    // 处理日期格式
+    // 处理日期格式 - 避免时区转换问题
+    const formatDateSafely = (date) => {
+      if (!date) return null
+      if (typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        return date
+      }
+      if (date instanceof Date) {
+        const year = date.getFullYear()
+        const month = String(date.getMonth() + 1).padStart(2, '0')
+        const day = String(date.getDate()).padStart(2, '0')
+        return `${year}-${month}-${day}`
+      }
+      return null
+    }
+
     const submitData = { ...form }
     if (submitData.change_date) {
-      submitData.change_date = new Date(submitData.change_date).toISOString().split('T')[0]
+      submitData.change_date = formatDateSafely(submitData.change_date)
     }
 
     // 使用组合键更新（因为表没有主键id）

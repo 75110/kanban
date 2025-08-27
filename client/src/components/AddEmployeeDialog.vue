@@ -620,22 +620,38 @@ const handleSubmit = async () => {
   try {
     loading.value = true
 
-    // 处理日期格式
+    // 处理日期格式 - 避免时区转换问题
+    const formatDateSafely = (date) => {
+      if (!date) return null
+      if (typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        // 如果已经是YYYY-MM-DD格式，直接返回
+        return date
+      }
+      if (date instanceof Date) {
+        // 使用本地时间格式化，避免时区转换
+        const year = date.getFullYear()
+        const month = String(date.getMonth() + 1).padStart(2, '0')
+        const day = String(date.getDate()).padStart(2, '0')
+        return `${year}-${month}-${day}`
+      }
+      return null
+    }
+
     const submitData = { ...form }
     if (submitData.birth_date) {
-      submitData.birth_date = new Date(submitData.birth_date).toISOString().split('T')[0]
+      submitData.birth_date = formatDateSafely(submitData.birth_date)
     }
     if (submitData.entry_date) {
-      submitData.entry_date = new Date(submitData.entry_date).toISOString().split('T')[0]
+      submitData.entry_date = formatDateSafely(submitData.entry_date)
     }
     if (submitData.actual_regularization_date) {
-      submitData.actual_regularization_date = new Date(submitData.actual_regularization_date).toISOString().split('T')[0]
+      submitData.actual_regularization_date = formatDateSafely(submitData.actual_regularization_date)
     }
     if (submitData.contract_end_date) {
-      submitData.contract_end_date = new Date(submitData.contract_end_date).toISOString().split('T')[0]
+      submitData.contract_end_date = formatDateSafely(submitData.contract_end_date)
     }
     if (submitData.graduation_date) {
-      submitData.graduation_date = new Date(submitData.graduation_date).toISOString().split('T')[0]
+      submitData.graduation_date = formatDateSafely(submitData.graduation_date)
     }
 
     await employeeApi.postRoster(submitData)
