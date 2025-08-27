@@ -167,6 +167,7 @@ router.get('/roster', async (req, res) => {
       // 转换数据 - 完整的数据转换，包含工龄计算和日期格式化
       const transformedRows = rows.map((row, index) => {
         console.log(`处理第 ${index + 1} 行: ${row.name}, 区域: ${row.region}, 入职时间: ${row.entry_date}, 工龄月数: ${row.work_age_months}`);
+        console.log(`原始员工性质: "${row.employee_type}", 劳动关系: "${row.labor_relation_affiliation}", 社保隶属: "${row.social_insurance_affiliation}"`);
 
         // 计算工龄分组
         const workAgeGroup = transformWorkAge(row.work_age_months);
@@ -191,22 +192,58 @@ router.get('/roster', async (req, res) => {
           actual_regularization_date: formatDate(row.actual_regularization_date),
           contract_end_date: formatDate(row.contract_end_date),
 
-          // 基本信息转换
-          gender: row.gender || '未知',
-          region: row.region || '未知',
-          department: row.department || '未知',
-          position: row.position || '未知',
-          education: row.education || '未知',
-          education_method: row.education_method || '未知',
-          political_status: row.political_status || '未知',
-          marital_status: row.marital_status || '未知',
-          hometown: row.hometown || '未知',
+          // 基本信息转换 - 空值显示为空字符串而不是"未知"
+          gender: row.gender || '',
+          region: row.region || '',
+          department: row.department || '',
+          position: row.position || '',
+          education: row.education || '',
+          education_method: row.education_method || '',
+          political_status: row.political_status || '',
+          marital_status: row.marital_status || '',
+          hometown: row.hometown || '',
 
-          // 员工类型转换
-          employee_type: {1: '正式', 2: '试用', 3: '实习'}[row.employee_type] || '未知',
+          // 员工类型转换 - 支持多种格式
+          employee_type: (() => {
+            if (!row.employee_type) return '';
 
-          // 保险类型转换
-          insurance_type: {1: '社保', 2: '工伤'}[row.insurance_type] || '无',
+            const typeStr = row.employee_type.toString().trim();
+
+            // 如果是数字格式
+            const numericMapping = {1: '正式', 2: '试用', 3: '实习'};
+            if (numericMapping[typeStr]) {
+              return numericMapping[typeStr];
+            }
+
+            // 如果包含"正式"、"试用"、"实习"等关键词，提取关键词
+            if (typeStr.includes('正式')) return '正式';
+            if (typeStr.includes('试用')) return '试用';
+            if (typeStr.includes('实习')) return '实习';
+
+            // 如果已经是简单格式，直接返回
+            if (['正式', '试用', '实习'].includes(typeStr)) {
+              return typeStr;
+            }
+
+            // 其他情况返回原值
+            return typeStr;
+          })(),
+
+          // 保险类型转换 - 支持数字和字符串两种格式
+          insurance_type: (() => {
+            if (!row.insurance_type) return '';
+            // 如果是数字格式
+            const numericMapping = {1: '社保', 2: '工伤'};
+            if (numericMapping[row.insurance_type]) {
+              return numericMapping[row.insurance_type];
+            }
+            // 如果已经是字符串格式，直接返回
+            if (['社保', '工伤', '无'].includes(row.insurance_type)) {
+              return row.insurance_type;
+            }
+            // 其他情况返回原值
+            return row.insurance_type;
+          })(),
 
           // 分组数据
           work_age_group: workAgeGroup,
@@ -795,15 +832,47 @@ router.get('/roster/export', async (req, res) => {
       // 格式化数据
       const exportData = rows.map(row => ({
         序列: row.sequence_number,
-        区域: row.region || '未知',
-        部门: row.department || '未知',
-        岗位: row.position || '未知',
+        区域: row.region || '',
+        部门: row.department || '',
+        岗位: row.position || '',
         名字: row.name,
-        性别: row.gender === 'M' ? '男' : (row.gender === 'F' ? '女' : '其他'),
-        民族: row.ethnicity,
-        政治面貌: row.political_status || '未知',
-        员工性质: row.employee_type,
-        险种: row.insurance_type,
+        性别: row.gender === 'M' ? '男' : (row.gender === 'F' ? '女' : (row.gender || '')),
+        民族: row.ethnicity || '',
+        政治面貌: row.political_status || '',
+        员工性质: (() => {
+          if (!row.employee_type) return '';
+
+          const typeStr = row.employee_type.toString().trim();
+
+          // 如果是数字格式
+          const numericMapping = {1: '正式', 2: '试用', 3: '实习'};
+          if (numericMapping[typeStr]) {
+            return numericMapping[typeStr];
+          }
+
+          // 如果包含"正式"、"试用"、"实习"等关键词，提取关键词
+          if (typeStr.includes('正式')) return '正式';
+          if (typeStr.includes('试用')) return '试用';
+          if (typeStr.includes('实习')) return '实习';
+
+          // 如果已经是简单格式，直接返回
+          if (['正式', '试用', '实习'].includes(typeStr)) {
+            return typeStr;
+          }
+
+          // 其他情况返回原值
+          return typeStr;
+        })(),
+        险种: (() => {
+          if (!row.insurance_type) return '';
+          // 如果是数字格式
+          const numericMapping = {1: '社保', 2: '工伤'};
+          if (numericMapping[row.insurance_type]) {
+            return numericMapping[row.insurance_type];
+          }
+          // 如果已经是字符串格式，直接返回
+          return row.insurance_type;
+        })(),
         出生日期: row.birth_date ? new Date(row.birth_date).toISOString().split('T')[0] : '',
         生日: row.birthday || '',
         入职时间: row.entry_date ? new Date(row.entry_date).toISOString().split('T')[0] : '',
@@ -876,6 +945,12 @@ router.post('/roster/import', upload.single('file'), async (req, res) => {
     console.log('Excel解析完成，共', jsonData.length, '行数据');
     if (jsonData.length > 0) {
       console.log('Excel数据示例（第一行）:', jsonData[0]);
+      console.log('Excel表头字段:', Object.keys(jsonData[0]));
+      // 检查关键字段
+      console.log('序列字段:', jsonData[0]['序列'] || jsonData[0]['序号']);
+      console.log('劳动关系隶属字段:', jsonData[0]['劳动关系隶属(*)'] || jsonData[0]['劳动关系归属']);
+      console.log('社保隶属字段:', jsonData[0]['社保隶属(*)'] || jsonData[0]['社保归属']);
+      console.log('员工性质字段:', jsonData[0]['员工性质']);
     }
 
     if (jsonData.length === 0) {
@@ -970,7 +1045,7 @@ router.post('/roster/import', upload.single('file'), async (req, res) => {
           const birthDate = parseExcelDate(row['出生日期'] || row['生日']);
 
           await connection.execute(insertSql, [
-            row['序号'] || null,
+            row['序列'] || row['序号'] || null,  // 支持"序列"和"序号"两种表头
             row['区域'] || null,
             row['部门'] || null,
             row['岗位'] || row['职位'] || null,
@@ -1004,8 +1079,8 @@ router.post('/roster/import', upload.single('file'), async (req, res) => {
             row['紧急联系人电话'] || null,
             row['银行卡号'] || null,
             row['详细支行信息'] || null,
-            row['劳动关系归属'] || null,
-            row['社保归属'] || null,
+            row['劳动关系隶属(*)'] || row['劳动关系归属'] || null,  // 支持带星号的标准表头
+            row['社保隶属(*)'] || row['社保归属'] || null,  // 支持带星号的标准表头
             row['竞业协议'] || null,
             row['保密协议'] || null,
             row['备注1'] || null,

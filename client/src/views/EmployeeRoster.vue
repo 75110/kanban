@@ -70,7 +70,7 @@
     <div class="data-table">
       <el-table v-loading="loading" :data="tableData" stripe border style="width: 100%"
         :default-sort="{ prop: 'entry_date', order: 'descending' }">
-        <el-table-column prop="id" label="序列" width="80" fixed="left" />
+        <el-table-column prop="sequence_number" label="序列" width="80" fixed="left" />
         <el-table-column prop="name" label="姓名" width="100" fixed="left" />
         <el-table-column prop="department" label="部门" width="120" />
         <el-table-column prop="position" label="岗位" width="120" />
@@ -82,6 +82,8 @@
         <el-table-column prop="organization_region" label="组织区域" width="100" />
         <el-table-column prop="region" label="区域" width="100" />
         <el-table-column prop="employee_type" label="员工性质" width="100" />
+        <el-table-column prop="labor_relation_affiliation" label="劳动关系隶属" width="140" />
+        <el-table-column prop="social_insurance_affiliation" label="社保隶属" width="120" />
         <el-table-column prop="marital_status" label="婚姻状况" width="100" />
         <el-table-column prop="personal_contact" label="联系方式" width="120" />
         <el-table-column label="操作" width="150" fixed="right">
@@ -240,10 +242,57 @@ const handleExport = async () => {
         '竞业协议', '保密协议', '备注1', '备注2'
       ]
 
+      // 字段映射：中文表头 -> 英文字段名
+      const fieldMapping = {
+        '序列': 'sequence_number',
+        '区域': 'region',
+        '部门': 'department',
+        '岗位': 'position',
+        '名字': 'name',
+        '性别': 'gender',
+        '民族': 'ethnicity',
+        '政治面貌': 'political_status',
+        '员工性质': 'employee_type',
+        '险种': 'insurance_type',
+        '出生日期': 'birth_date',
+        '生日': 'birthday',
+        '入职时间': 'entry_date',
+        '实际转正日期': 'actual_regularization_date',
+        '备注': 'remarks',
+        '合同终止日期': 'contract_end_date',
+        '工龄（月）': 'work_age_months',
+        '身份证号': 'id_card_number',
+        '身份证地址': 'id_card_address',
+        '年龄': 'age',
+        '籍贯': 'hometown',
+        '毕业院校': 'graduation_school',
+        '专业': 'major',
+        '学历': 'education',
+        '教育方式': 'education_method',
+        '毕业日期': 'graduation_date',
+        '面试官姓名': 'interviewer_name',
+        '婚姻状况': 'marital_status',
+        '现居住地': 'current_address',
+        '本人联系方式': 'personal_contact',
+        '紧急联系人姓名': 'emergency_contact_name',
+        '紧急联系人电话': 'emergency_contact_phone',
+        '银行卡号': 'bank_card_number',
+        '详细支行信息': 'bank_branch_info',
+        '劳动关系隶属(*)': 'labor_relation_affiliation',
+        '社保隶属(*)': 'social_insurance_affiliation',
+        '竞业协议': 'non_compete_agreement',
+        '保密协议': 'confidentiality_agreement',
+        '备注1': 'remarks1',
+        '备注2': 'remarks2'
+      }
+
       // 转换数据为CSV格式
       const csvContent = [
         headers.join(','),
-        ...data.map(row => headers.map(header => row[header] || '').join(','))
+        ...data.map(row => headers.map(header => {
+          const fieldName = fieldMapping[header]
+          return fieldName ? (row[fieldName] || '') : ''
+        }).join(','))
       ].join('\n')
 
       // 创建下载链接
