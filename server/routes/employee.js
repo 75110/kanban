@@ -1199,22 +1199,111 @@ router.put('/roster/:id', async (req, res) => {
     try {
       await connection.beginTransaction();
 
-      // 更新花名册表中的基本信息
+      // 计算工龄和年龄
+      const calcWorkMonths = (entryDate) => {
+        if (!entryDate) return null;
+        const entry = new Date(entryDate);
+        const now = new Date();
+        const diffTime = Math.abs(now - entry);
+        const diffMonths = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 30.44)); // 平均每月30.44天
+        return diffMonths;
+      };
+
+      const calcAge = (birthDate) => {
+        if (!birthDate) return null;
+        const birth = new Date(birthDate);
+        const now = new Date();
+        let age = now.getFullYear() - birth.getFullYear();
+        const monthDiff = now.getMonth() - birth.getMonth();
+        if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < birth.getDate())) {
+          age--;
+        }
+        return age;
+      };
+
+      // 动态构建更新SQL，只更新有值的字段
+      const updateFields = [];
+      const updateValues = [];
+
+      // 定义字段映射
+      const fieldMappings = {
+        sequence_number: 'sequence_number',
+        region: 'region',
+        department: 'department',
+        position: 'position',
+        name: 'name',
+        gender: 'gender',
+        ethnicity: 'ethnicity',
+        political_status: 'political_status',
+        employee_type: 'employee_type',
+        insurance_type: 'insurance_type',
+        birth_date: 'birth_date',
+        birthday: 'birthday',
+        entry_date: 'entry_date',
+        actual_regularization_date: 'actual_regularization_date',
+        remarks: 'remarks',
+        contract_end_date: 'contract_end_date',
+        id_card_number: 'id_card_number',
+        id_card_address: 'id_card_address',
+        hometown: 'hometown',
+        graduation_school: 'graduation_school',
+        major: 'major',
+        education: 'education',
+        education_method: 'education_method',
+        graduation_date: 'graduation_date',
+        interviewer_name: 'interviewer_name',
+        marital_status: 'marital_status',
+        current_address: 'current_address',
+        personal_contact: 'personal_contact',
+        emergency_contact_name: 'emergency_contact_name',
+        emergency_contact_phone: 'emergency_contact_phone',
+        bank_card_number: 'bank_card_number',
+        bank_branch_info: 'bank_branch_info',
+        labor_relation_affiliation: 'labor_relation_affiliation',
+        social_insurance_affiliation: 'social_insurance_affiliation',
+        non_compete_agreement: 'non_compete_agreement',
+        confidentiality_agreement: 'confidentiality_agreement',
+        remarks1: 'remarks1',
+        remarks2: 'remarks2'
+      };
+
+      // 遍历更新数据，只添加有值的字段
+      Object.keys(fieldMappings).forEach(field => {
+        if (updateData.hasOwnProperty(field) && updateData[field] !== undefined) {
+          updateFields.push(`${fieldMappings[field]} = ?`);
+          updateValues.push(updateData[field] || null);
+        }
+      });
+
+      // 如果有入职时间更新，自动计算工龄
+      if (updateData.entry_date) {
+        updateFields.push('work_age_months = ?');
+        updateValues.push(calcWorkMonths(updateData.entry_date));
+      }
+
+      // 如果有出生日期更新，自动计算年龄
+      if (updateData.birth_date) {
+        updateFields.push('age = ?');
+        updateValues.push(calcAge(updateData.birth_date));
+      }
+
+      if (updateFields.length === 0) {
+        throw new Error('没有需要更新的字段');
+      }
+
+      // 添加WHERE条件的参数
+      updateValues.push(employeeId, updateData.originalName || updateData.name);
+
       const updateSql = `
         UPDATE employee_roster
-        SET name = ?, department = ?, position = ?, region = ?, personal_contact = ?
+        SET ${updateFields.join(', ')}
         WHERE sequence_number = ? OR name = ?
       `;
 
-      await connection.execute(updateSql, [
-        updateData.name,
-        updateData.department,
-        updateData.position,
-        updateData.region,
-        updateData.personal_contact,
-        employeeId,
-        updateData.originalName || updateData.name
-      ]);
+      console.log('更新SQL:', updateSql);
+      console.log('更新参数:', updateValues);
+
+      await connection.execute(updateSql, updateValues);
 
       await connection.commit();
 
