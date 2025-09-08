@@ -1,5 +1,5 @@
 <template>
-  <div class="chart-container">
+  <div class="chart-container" :class="{ 'department-transfer-chart': chartType === 'departmentTransfer', 'department-stats-chart': chartType === 'resignationDepartmentStats' }">
     <div class="chart-header">
       <div class="chart-title">{{ title }}</div>
       <div class="chart-actions">
@@ -113,7 +113,7 @@ import { computed, watch, ref, onBeforeUnmount, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { use } from 'echarts/core'
 import { CanvasRenderer, SVGRenderer } from 'echarts/renderers'
-import { PieChart, BarChart, HeatmapChart } from 'echarts/charts'
+import { PieChart, BarChart, HeatmapChart, MapChart, ScatterChart } from 'echarts/charts'
 import {
   TitleComponent,
   TooltipComponent,
@@ -134,6 +134,8 @@ use([
   PieChart,
   BarChart,
   HeatmapChart,
+  MapChart,
+  ScatterChart,
   TitleComponent,
   TooltipComponent,
   LegendComponent,
@@ -150,7 +152,7 @@ const props = defineProps({
   type: {
     type: String,
     default: 'pie',
-    validator: (value) => ['pie', 'bar', 'bubble', 'heatmap', 'wordcloud'].includes(value)
+    validator: (value) => ['pie', 'bar', 'bubble', 'heatmap', 'wordcloud', 'map'].includes(value)
   },
   horizontal: {
     type: Boolean,
@@ -171,8 +173,8 @@ const props = defineProps({
   },
   chartType: {
     type: String,
-    default: '', // 'workAge', 'education', 'department', 'resignationDepartment', 'resignationReason', 'resignationDepartmentStats', 'resignationPosition', 'resignationTenure'
-    validator: (value) => ['', 'workAge', 'education', 'department', 'resignationDepartment', 'resignationReason', 'resignationDepartmentStats', 'resignationPosition', 'resignationTenure'].includes(value)
+    default: '', // 'workAge', 'education', 'department', 'resignationDepartment', 'resignationReason', 'resignationDepartmentStats', 'resignationPosition', 'resignationTenure', 'map'
+    validator: (value) => ['', 'workAge', 'education', 'department', 'resignationDepartment', 'resignationReason', 'resignationDepartmentStats', 'resignationPosition', 'resignationTenure', 'map'].includes(value)
   }
 })
 
@@ -199,6 +201,9 @@ const handleChartClick = (params) => {
     clickedValue = params.name || params.axisValue
   } else if (props.type === 'wordcloud') {
     // 词云图：使用 params.name
+    clickedValue = params.name
+  } else if (props.type === 'map') {
+    // 地图：使用 params.name（省份或城市名称）
     clickedValue = params.name
   }
 
@@ -682,12 +687,103 @@ const onFullscreenClosed = () => {
 
 // 检查是否为空数据
 const isEmpty = computed(() => {
-  return !props.data || !props.data.labels?.length || !props.data.values?.length
+  if (!props.data) return true
+  
+  // 地图类型的数据检查
+  if (props.type === 'map') {
+    return !props.data.mapType || !props.data.data?.length
+  }
+  
+  // 其他图表类型的数据检查
+  return !props.data.labels?.length || !props.data.values?.length
 })
 
 // 图表配置
 const chartOption = computed(() => {
   if (isEmpty.value || !props.data) return {}
+
+  // 地图类型的数据处理
+  if (props.type === 'map') {
+    const { mapType, data } = props.data
+    
+    // 地图模式
+    return {
+      backgroundColor: '#F5F7FA',
+      tooltip: {
+        trigger: 'item',
+        formatter: '{b}: {c}人'
+      },
+      visualMap: {
+        min: 0,
+        max: Math.max(...data.map(item => item.value)) || 100,
+        text: ['高', '低'],
+        realtime: false,
+        calculable: true,
+        left: 'left',
+        bottom: '5%',
+        itemWidth: 15,
+        itemHeight: 120,
+        textStyle: {
+          color: '#666'
+        },
+        inRange: {
+          color: ['#e6f7ff', '#bae7ff', '#91d5ff', '#69c0ff', '#40a9ff', '#1890ff', '#096dd9']
+        }
+      },
+      series: [
+        {
+          name: props.title,
+          type: 'map',
+          map: mapType || 'china',
+          roam: true,
+          zoom: 1.2,
+          center: [105, 35],
+          label: {
+            show: true,
+            fontSize: 11,
+            color: '#333',
+            formatter: function(params) {
+              // 显示省份名称和人数
+              if (params.data && params.data.value) {
+                return `${params.name}\n${params.data.value}人`
+              }
+              return params.name
+            }
+          },
+          itemStyle: {
+            areaColor: '#f3f3f3',
+            borderColor: '#ddd',
+            borderWidth: 1
+          },
+          emphasis: {
+            label: {
+              show: true,
+              color: '#fff',
+              fontSize: 12,
+              formatter: function(params) {
+                // 鼠标悬停时显示省份名称和人数
+                if (params.data && params.data.value) {
+                  return `${params.name}\n${params.data.value}人`
+                }
+                return params.name
+              }
+            },
+            itemStyle: {
+              areaColor: '#ffd700', // 黄色高亮
+              shadowColor: 'rgba(255, 215, 0, 0.5)',
+              shadowBlur: 10
+            }
+          },
+          select: {
+            itemStyle: {
+              areaColor: '#ffd700' // 选中状态显示黄色
+            }
+          },
+          data: data || []
+        }
+      ]
+    }
+  }
 
   const { labels, values } = props.data
 
@@ -727,7 +823,7 @@ const chartOption = computed(() => {
         {
           name: props.title,
           type: 'pie',
-          radius: props.pieStyle === 'solid' ? '70%' : ['40%', '70%'],
+          radius: props.pieStyle === 'solid' ? '75%' : ['50%', '75%'],
           center: ['50%', '50%'],
           avoidLabelOverlap: false,
           itemStyle: {
@@ -826,10 +922,11 @@ const chartOption = computed(() => {
         }
       },
       grid: {
-        left: 0,
-        right: 0,
-        top: 0,
-        bottom: 0
+        left: '2%',
+        right: '2%',
+        top: '2%',
+        bottom: '2%',
+        containLabel: true
       },
       xAxis: {
         type: 'value',
@@ -1007,8 +1104,8 @@ const chartOption = computed(() => {
       },
       grid: {
         left: props.horizontal ? '2%' : '2%',
-        right: props.horizontal ? '1%' : '1%',
-        top: '5%',
+        right: props.horizontal ? '15%' : '1%',
+        top: props.horizontal ? '8%' : '5%',
         bottom: props.horizontal ? '8%' : (labels.length > 8 ? '15%' : '8%'),
         containLabel: true
       },
@@ -1017,16 +1114,16 @@ const chartOption = computed(() => {
           type: 'slider',
           show: true,
           [props.horizontal ? 'yAxisIndex' : 'xAxisIndex']: [0],
-          start: props.chartType === 'departmentTransfer' ? 50 : 0,
-          end: props.chartType === 'departmentTransfer' ? 100 : 50,
+          start: 0,
+          end: 100,
           top: props.horizontal ? '5%' : undefined,
           bottom: props.horizontal ? undefined : '5%'
         },
         {
           type: 'inside',
           [props.horizontal ? 'yAxisIndex' : 'xAxisIndex']: [0],
-          start: props.chartType === 'departmentTransfer' ? 50 : 0,
-          end: props.chartType === 'departmentTransfer' ? 100 : 50
+          start: 0,
+          end: 100
         }
       ] : [],
       xAxis: {
@@ -1044,12 +1141,10 @@ const chartOption = computed(() => {
             color: '#e6e6e6'
           }
         },
-        boundaryGap: props.horizontal ? false : true,
-        splitLine: props.horizontal ? {
-          lineStyle: {
-            color: '#f0f0f0'
-          }
-        } : undefined
+        splitLine: {
+          show: false
+        },
+        boundaryGap: props.horizontal ? false : true
       },
       yAxis: {
         type: props.horizontal ? 'category' : 'value',
@@ -1064,10 +1159,8 @@ const chartOption = computed(() => {
             color: '#e6e6e6'
           }
         },
-        splitLine: props.horizontal ? undefined : {
-          lineStyle: {
-            color: '#f0f0f0'
-          }
+        splitLine: {
+          show: false
         }
       },
       series: [
@@ -1106,7 +1199,7 @@ const chartOption = computed(() => {
             }
           },
           label: {
-            show: values.length <= 10,
+            show: true,
             position: props.horizontal ? 'right' : 'top',
             fontSize: 11,
             color: '#666'
@@ -1167,7 +1260,7 @@ const testClick = (event) => {
 .chart-container {
   background: white;
   border-radius: 8px;
-  padding: 16px;
+  padding: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   height: 100%;
   display: flex;
@@ -1178,14 +1271,13 @@ const testClick = (event) => {
 
 .chart-container:hover {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  transform: translateY(-2px);
 }
 
 .chart-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: 6px;
 }
 
 .chart-title {
@@ -1234,6 +1326,7 @@ const testClick = (event) => {
   background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(2px);
   z-index: 10;
+  border-radius: 8px;
 }
 
 .loading-overlay {
@@ -1288,4 +1381,10 @@ const testClick = (event) => {
   height: 100% !important;
   width: 100% !important;
 }
+
+/* 各部门离职人数图表样式 - 与默认ChartCard样式保持一致 */
+.department-stats-chart {
+  /* 使用默认样式，不添加特殊样式 */
+}
+
 </style>

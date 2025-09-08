@@ -2,11 +2,6 @@
   <el-container class="layout-container">
     <!-- 侧边栏 -->
     <el-aside :width="isCollapse ? '64px' : '200px'" class="sidebar">
-      <div class="logo">
-        <el-icon v-if="isCollapse" class="logo-icon"><OfficeBuilding /></el-icon>
-        <span v-else class="logo-text">人事数据看板</span>
-      </div>
-      
       <el-menu
         :default-active="activeMenu"
         :collapse="isCollapse"
@@ -24,14 +19,19 @@
           <template #title>员工花名册</template>
         </el-menu-item>
 
-        <el-menu-item index="/resignation-monitoring">
+        <el-menu-item index="/employee-status-info">
           <el-icon><UserFilled /></el-icon>
-          <template #title>离职监控</template>
+          <template #title>在职离职信息</template>
         </el-menu-item>
         
         <el-menu-item index="/personnel-changes">
           <el-icon><Switch /></el-icon>
           <template #title>人员异动</template>
+        </el-menu-item>
+        
+        <el-menu-item index="/employee-awards">
+          <el-icon><Trophy /></el-icon>
+          <template #title>员工获奖记录</template>
         </el-menu-item>
       </el-menu>
     </el-aside>
@@ -48,11 +48,18 @@
           >
             <el-icon><Fold v-if="!isCollapse" /><Expand v-else /></el-icon>
           </el-button>
-          
-          <el-breadcrumb separator="/" class="breadcrumb">
-            <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
-            <el-breadcrumb-item>{{ currentPageTitle }}</el-breadcrumb-item>
-          </el-breadcrumb>
+
+          <!-- Logo和标题 (默认显示) -->
+          <div class="logo-section" v-show="!showFilterInHeader">
+            <!-- Logo图片：大小由CSS中的.logo-image样式控制 -->
+            <img src="@/assets/images/logo.png" alt="Logo" class="logo-image" />
+            <span class="logo-title">人事数据看板</span>
+          </div>
+
+          <!-- 筛选控件 (滚动时显示) -->
+          <div class="header-filter-section" v-show="showFilterInHeader">
+            <slot name="header-filter"></slot>
+          </div>
         </div>
         
         <div class="header-right">
@@ -81,24 +88,29 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, provide } from 'vue'
 import { useRoute } from 'vue-router'
 import {
-  OfficeBuilding,
   DataAnalysis,
   User,
   UserFilled,
   Switch,
+  Document,
+  Trophy,
   Fold,
   Expand,
   Avatar,
-  ArrowDown
+  ArrowDown,
+  Location
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
 
 // 侧边栏折叠状态
 const isCollapse = ref(false)
+
+// 导航栏筛选显示状态
+const showFilterInHeader = ref(false)
 
 // 当前激活的菜单
 const activeMenu = computed(() => route.path)
@@ -108,8 +120,9 @@ const currentPageTitle = computed(() => {
   const titleMap = {
     '/dashboard': '数据看板',
     '/employee-roster': '员工花名册',
-    '/resignation-monitoring': '离职监控',
-    '/personnel-changes': '人员异动'
+    '/employee-status-info': '在职离职信息',
+    '/personnel-changes': '人员异动',
+    '/employee-awards': '员工获奖记录'
   }
   return titleMap[route.path] || '数据看板'
 })
@@ -118,6 +131,14 @@ const currentPageTitle = computed(() => {
 const toggleCollapse = () => {
   isCollapse.value = !isCollapse.value
 }
+
+// 提供给子组件控制导航栏筛选显示的方法
+const setShowFilterInHeader = (show) => {
+  showFilterInHeader.value = show
+}
+
+// 向子组件提供控制方法
+provide('setShowFilterInHeader', setShowFilterInHeader)
 </script>
 
 <style scoped>
@@ -190,9 +211,54 @@ const toggleCollapse = () => {
   color: #606266;
 }
 
-.breadcrumb {
-  font-size: 14px;
+/* Logo区域容器样式 - 控制logo和标题的布局 */
+.logo-section {
+  display: flex;
+  align-items: center;
+  gap: 16px;         /* Logo和标题之间的间距：可以修改这个值来调整间距 */
+  margin-left: 20px; /* 整个logo区域距离左边的距离 */
 }
+
+/* Logo图片样式 - 控制logo的大小 */
+.logo-image {
+  width: 200px;        /* Logo宽度：可以修改这个值来调整logo的宽度 */
+  height: 48px;       /* Logo高度：可以修改这个值来调整logo的高度 */
+  object-fit: contain; /* 保持图片比例，防止变形 */
+}
+
+.logo-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #303133;
+  white-space: nowrap;
+}
+
+.header-filter-section {
+  display: flex;
+  align-items: center;
+  margin-left: 16px;
+  flex: 1;
+}
+
+.header-filter-section :deep(.el-form) {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.header-filter-section :deep(.el-form-item) {
+  margin-right: 0;
+  margin-bottom: 0;
+}
+
+.header-filter-section :deep(.el-form-item__label) {
+  font-size: 14px;
+  color: #606266;
+  margin-right: 8px;
+}
+
+
 
 .header-right {
   display: flex;
@@ -234,9 +300,7 @@ const toggleCollapse = () => {
     gap: 12px;
   }
   
-  .breadcrumb {
-    display: none;
-  }
+
   
   .username {
     display: none;

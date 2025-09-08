@@ -32,8 +32,7 @@ function getTenureCondition(tenure) {
 
 // 组织区域到具体区域的映射
 const ORG_REGION_MAP = {
-  '华东': ['总部', '杭州', '上海', '宁波', '义乌'],
-  '华北': ['合肥'],
+  '华东': ['总部', '杭州', '上海', '宁波', '义乌', '合肥'],
   '华南': ['中山', '厦门', '广州', '泉州', '深圳']
 }
 
@@ -46,22 +45,16 @@ function toRegionList(orgRegion) {
 function getWorkAgeMonthsRange(workAge) {
   const ranges = {
     '1年以下': { min: 0, max: 12 },
-    '1-2年': { min: 12, max: 24 },
-    '2-3年': { min: 24, max: 36 },
-    '3-4年': { min: 36, max: 48 },
-    '4-5年': { min: 48, max: 60 },
-    '5-6年': { min: 60, max: 72 },
-    '6-7年': { min: 72, max: 84 },
-    '7-8年': { min: 84, max: 96 },
-    '8-9年': { min: 96, max: 108 },
-    '9-10年': { min: 108, max: 120 },
-    '10年以上': { min: 120, max: 999999 }
+    '1-3年': { min: 12, max: 36 },
+    '3-6年': { min: 36, max: 72 },
+    '6-12年': { min: 72, max: 144 },
+    '12年以上': { min: 144, max: 999999 }
   };
   return ranges[workAge] || null;
 }
 
 // 构建 where 子句（按表别名）
-function buildWhere(alias, { organizationRegion, region, department, workAge, education, year, month, dateField }) {
+function buildWhere(alias, { organizationRegion, region, department, workAge, education, hometown, year, month, dateRange, dateField }) {
   const conditions = []
   const params = []
 
@@ -93,6 +86,12 @@ function buildWhere(alias, { organizationRegion, region, department, workAge, ed
     }
   }
 
+  // 户籍地筛选 - 只对有hometown字段的表生效
+  if (hometown && alias !== 'pc') { // personnel_changes表没有hometown字段
+    conditions.push(`${alias}.hometown LIKE ?`)
+    params.push(`%${hometown}%`)
+  }
+
   // 部门
   if (department) {
     conditions.push(`${alias}.department = ?`)
@@ -117,12 +116,19 @@ function buildWhere(alias, { organizationRegion, region, department, workAge, ed
     }
   }
 
-  // 日期
-  const dr = getDateRange(year, month)
-  if (dr) {
+  // 日期范围筛选
+  if (dateRange && dateRange.length === 2) {
     const field = dateField || 'entry_date'
     conditions.push(`${alias}.${field} BETWEEN ? AND ?`)
-    params.push(dr.start, dr.end)
+    params.push(dateRange[0], dateRange[1])
+  } else {
+    // 日期（年份/月份）
+    const dr = getDateRange(year, month)
+    if (dr) {
+      const field = dateField || 'entry_date'
+      conditions.push(`${alias}.${field} BETWEEN ? AND ?`)
+      params.push(dr.start, dr.end)
+    }
   }
 
   return { where: conditions.length ? `WHERE ${conditions.join(' AND ')}` : '', params }
@@ -133,9 +139,11 @@ function buildWhere(alias, { organizationRegion, region, department, workAge, ed
  */
 router.get('/stats', async (req, res) => {
   try {
-    const { organizationRegion, region, department, workAge, education, year, month } = req.query;
-    console.log('Dashboard stats request:', { organizationRegion, region, department, workAge, education, year, month });
+    const { organizationRegion, region, department, workAge, education, hometown, year, month, dateRange } = req.query;
+    console.log('=== Dashboard stats API 调用 ===');
+    console.log('Dashboard stats request:', { organizationRegion, region, department, workAge, education, hometown, year, month, dateRange });
     console.log('Education filter value:', education);
+    console.log('Hometown filter value:', hometown);
     const pool = req.pool;
 
     // 构建查询条件
@@ -152,12 +160,9 @@ router.get('/stats', async (req, res) => {
       // 根据组织区域筛选对应的具体区域
       let regionList = [];
       if (orgRegionValue === '华东') {
-        regionList = ['总部', '杭州', '上海', '宁波', '义乌'];
-      } else if (orgRegionValue === '华北') {
-        regionList = ['合肥'];
+        regionList = ['总部', '杭州', '上海', '宁波', '义乌', '合肥'];
       } else if (orgRegionValue === '华南') {
-        // 获取所有不属于华东和华北的区域
-        regionList = ['中山', '厦门', '广州', '泉州', '深圳']; // 根据实际数据调整
+        regionList = ['中山', '厦门', '广州', '泉州', '深圳'];
       }
 
       if (regionList.length > 0) {
@@ -194,17 +199,19 @@ router.get('/stats', async (req, res) => {
       }
     }
 
-    // 日期范围条件
-    const dateRange = getDateRange(year, month);
-    if (dateRange) {
-      whereConditions.push('er.entry_date BETWEEN ? AND ?');
-      params.push(dateRange.start, dateRange.end);
+    // 日期范围条件（如果没有提供dateRange参数）
+    if (!dateRange || dateRange.length !== 2) {
+      const dateRangeFromYearMonth = getDateRange(year, month);
+      if (dateRangeFromYearMonth) {
+        whereConditions.push('er.entry_date BETWEEN ? AND ?');
+        params.push(dateRangeFromYearMonth.start, dateRangeFromYearMonth.end);
+      }
     }
 
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
     // 获取当前期数据
-    const currentStats = await getCurrentStats(pool, { organizationRegion, region, department, workAge, education, year, month });
+    const currentStats = await getCurrentStats(pool, { organizationRegion, region, department, workAge, education, hometown, year, month, dateRange });
 
     // 获取对比期数据（环比和同比）
     let previousStats = null;
@@ -215,30 +222,34 @@ router.get('/stats', async (req, res) => {
       const prevDateRange = getPreviousDateRange(parseInt(year), parseInt(month));
       if (prevDateRange) {
         const prevParams = [...params.slice(0, -2), prevDateRange.start, prevDateRange.end];
-        previousStats = await getCurrentStats(pool, { organizationRegion, region, department, workAge, education, year: parseInt(year), month: parseInt(month) - 1 });
+        previousStats = await getCurrentStats(pool, { organizationRegion, region, department, workAge, education, hometown, year: parseInt(year), month: parseInt(month) - 1 });
       }
 
       // 同比：去年同月数据
       const lastYearDateRange = getLastYearDateRange(parseInt(year), parseInt(month));
       if (lastYearDateRange) {
         const lastYearParams = [...params.slice(0, -2), lastYearDateRange.start, lastYearDateRange.end];
-        lastYearStats = await getCurrentStats(pool, { organizationRegion, region, department, workAge, education, year: parseInt(year) - 1, month: parseInt(month) });
+        lastYearStats = await getCurrentStats(pool, { organizationRegion, region, department, workAge, education, hometown, year: parseInt(year) - 1, month: parseInt(month) });
       }
     } else if (year) {
       // 同比：去年数据
       const lastYearDateRange = getLastYearDateRange(parseInt(year));
       if (lastYearDateRange) {
         const lastYearParams = [...params.slice(0, -2), lastYearDateRange.start, lastYearDateRange.end];
-        lastYearStats = await getCurrentStats(pool, { organizationRegion, region, department, workAge, education, year: parseInt(year) - 1, month });
+        lastYearStats = await getCurrentStats(pool, { organizationRegion, region, department, workAge, education, hometown, year: parseInt(year) - 1, month });
       }
     }
 
     // 计算比率
     const calculateRates = (stats) => {
       const total = stats.totalEmployees || 1; // 避免除零
+      const newEmployees = stats.newEmployees || 0;
+      const resignedEmployees = stats.resignedEmployees || 0;
+      const retentionCount = newEmployees - resignedEmployees;
+      
       return {
         changeRate: ((stats.resignedEmployees + stats.transferEmployees) / total * 100),
-        newEmployeeRate: (stats.newEmployees / total * 100),
+        retentionRate: newEmployees > 0 ? (retentionCount / newEmployees * 100) : 0,
         resignationRate: (stats.resignedEmployees / total * 100)
       };
     };
@@ -257,7 +268,7 @@ router.get('/stats', async (req, res) => {
           resignedEmployees: calculateMonthOverMonth(currentStats.resignedEmployees, previousStats.resignedEmployees),
           transferEmployees: calculateMonthOverMonth(currentStats.transferEmployees, previousStats.transferEmployees),
           changeRate: calculateMonthOverMonth(currentRates.changeRate, previousRates.changeRate),
-          newEmployeeRate: calculateMonthOverMonth(currentRates.newEmployeeRate, previousRates.newEmployeeRate),
+          retentionRate: calculateMonthOverMonth(currentRates.retentionRate, previousRates.retentionRate),
           resignationRate: calculateMonthOverMonth(currentRates.resignationRate, previousRates.resignationRate)
         } : null,
         yearOverYear: lastYearStats ? {
@@ -266,7 +277,7 @@ router.get('/stats', async (req, res) => {
           resignedEmployees: calculateYearOverYear(currentStats.resignedEmployees, lastYearStats.resignedEmployees),
           transferEmployees: calculateYearOverYear(currentStats.transferEmployees, lastYearStats.transferEmployees),
           changeRate: calculateYearOverYear(currentRates.changeRate, lastYearRates.changeRate),
-          newEmployeeRate: calculateYearOverYear(currentRates.newEmployeeRate, lastYearRates.newEmployeeRate),
+          retentionRate: calculateYearOverYear(currentRates.retentionRate, lastYearRates.retentionRate),
           resignationRate: calculateYearOverYear(currentRates.resignationRate, lastYearRates.resignationRate)
         } : null
       }
@@ -282,85 +293,225 @@ router.get('/stats', async (req, res) => {
 /**
  * 获取当前统计数据
  */
-async function getCurrentStats(pool, { organizationRegion, region, department, workAge, education, year, month }) {
+async function getCurrentStats(pool, { organizationRegion, region, department, workAge, education, hometown, year, month, dateRange }) {
+  console.log('=== getCurrentStats 函数调用 ===');
+  console.log('getCurrentStats 参数:', { organizationRegion, region, department, workAge, education, hometown, year, month, dateRange });
+  
   const connection = await pool.getConnection();
 
   try {
-    // 在职员工数（从employee_roster表统计）
-    let totalResult;
-    console.log('getCurrentStats - month parameter:', month, 'year parameter:', year);
-    if (month) {
-      // 选择了月份：统计截止到该月最后一天的累计在职人数
-      const currentYear = year || new Date().getFullYear();
-      const lastDayOfMonth = new Date(currentYear, parseInt(month), 0).getDate();
-      const cutoffDate = `${currentYear}-${month.toString().padStart(2, '0')}-${lastDayOfMonth}`;
-      console.log('计算在职人数截止日期:', cutoffDate);
+    // 构建基础筛选条件（使用employee_info表）
+    let baseWhereConditions = [];
+    let baseParams = [];
 
-      const { where: baseWhere, params: baseParams } = buildWhere('er', {
-        organizationRegion, region, department, workAge, education, dateField: 'entry_date'
-      });
-      const conditions = [];
-      const params = [...baseParams];
-      if (baseWhere) {
-        conditions.push(baseWhere.replace('WHERE ', ''));
+    // 组织区域筛选
+    if (organizationRegion) {
+      let orgRegionValue = organizationRegion;
+      if (typeof organizationRegion === 'object' && organizationRegion.id) {
+        orgRegionValue = organizationRegion.id;
       }
-      conditions.push('er.entry_date <= ?');
-      params.push(cutoffDate);
-      const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-      console.log('在职人数查询SQL:', `SELECT COUNT(*) as count FROM employee_roster er ${whereClause}`, 'params:', params);
-      [totalResult] = await connection.execute(
-        `SELECT COUNT(*) as count FROM employee_roster er ${whereClause}`,
-        params
-      );
-    } else if (year) {
-      // 只选择年份（未选月份）：统计截止到该年末的累计在职人数
-      const { where: baseWhere, params: baseParams } = buildWhere('er', {
-        organizationRegion, region, department, workAge, education, dateField: 'entry_date'
-      });
-      const conditions = [];
-      const params = [...baseParams];
-      if (baseWhere) {
-        conditions.push(baseWhere.replace('WHERE ', ''));
+
+      // 根据组织区域筛选对应的具体区域
+      let regionList = [];
+      if (orgRegionValue === '华东') {
+        regionList = ['总部', '杭州', '上海', '宁波', '义乌', '合肥'];
+      } else if (orgRegionValue === '华南') {
+        regionList = ['中山', '厦门', '广州', '泉州', '深圳'];
       }
-      conditions.push('er.entry_date <= ?');
-      params.push(`${year}-12-31`);
-      const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-      [totalResult] = await connection.execute(
-        `SELECT COUNT(*) as count FROM employee_roster er ${whereClause}`,
-        params
-      );
+
+      if (regionList.length > 0) {
+        const placeholders = regionList.map(() => '?').join(',');
+        baseWhereConditions.push(`ei.region IN (${placeholders})`);
+        baseParams.push(...regionList);
+      }
+    } else if (region) {
+      baseWhereConditions.push('ei.region = ?');
+      baseParams.push(region);
+    }
+
+    if (department) {
+      baseWhereConditions.push('ei.department = ?');
+      baseParams.push(department);
+    }
+
+    if (workAge) {
+      const monthsRange = getWorkAgeMonthsRange(workAge);
+      if (monthsRange) {
+        baseWhereConditions.push('ei.work_age_months >= ? AND ei.work_age_months < ?');
+        baseParams.push(monthsRange.min, monthsRange.max);
+      }
+    }
+
+    if (education) {
+      const educationValues = reverseTransformEducation(education);
+      if (educationValues.length > 0) {
+        const placeholders = educationValues.map(() => '?').join(',');
+        baseWhereConditions.push(`ei.education IN (${placeholders})`);
+        baseParams.push(...educationValues);
+      }
+    }
+
+    if (hometown) {
+      baseWhereConditions.push('ei.hometown LIKE ?');
+      baseParams.push(`%${hometown}%`);
+      console.log('添加户籍地筛选:', hometown);
+    }
+
+    // 日期筛选逻辑
+    let dateFilter = null;
+    let isDateRangeFilter = false; // 标记是否为开始结束日期筛选
+    console.log('=== 日期筛选参数检查 ===');
+    console.log('dateRange:', dateRange);
+    console.log('year:', year);
+    console.log('month:', month);
+    
+    if (dateRange && Array.isArray(dateRange) && dateRange.length === 2) {
+      // 开始结束日期筛选
+      dateFilter = {
+        start: dateRange[0],
+        end: dateRange[1]
+      };
+      isDateRangeFilter = true;
+      console.log('使用开始结束日期筛选:', dateFilter);
     } else {
-      // 未选择年份和月份：统计全部在职员工
-      const { where: totalWhereNoYear, params: totalParamsNoYear } = buildWhere('er', {
-        organizationRegion, region, department, workAge, education, dateField: 'entry_date'
-      });
+      // 年月筛选
+      dateFilter = getDateRange(year, month);
+      isDateRangeFilter = false;
+      console.log('使用年月筛选:', dateFilter);
+    }
+
+    // 在职员工数（根据时间筛选类型不同处理）
+    let totalResult;
+    if (dateFilter) {
+      const conditions = [...baseWhereConditions];
+      const params = [...baseParams];
+      conditions.push('ei.status = ?');
+      params.push('在职');
+      
+      if (isDateRangeFilter) {
+        // 开始结束日期筛选：显示时间段内的在职人数
+        // 条件：在时间段内入职且在时间段结束时仍在职的人
+        console.log('=== 开始结束日期筛选在职人数查询 ===');
+        conditions.push('ei.entry_date >= ?');
+        params.push(dateFilter.start);
+        conditions.push('ei.entry_date <= ?');
+        params.push(dateFilter.end);
+        conditions.push('(ei.resignation_date IS NULL OR ei.resignation_date > ?)');
+        params.push(dateFilter.end);
+        
+        const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+        console.log('在职人数查询SQL:', `SELECT COUNT(*) as count FROM employee_info ei ${whereClause}`);
+        console.log('在职人数查询参数:', params);
+        [totalResult] = await connection.execute(
+          `SELECT COUNT(*) as count FROM employee_info ei ${whereClause}`,
+          params
+        );
+        console.log('在职人数查询结果:', totalResult[0]);
+      } else {
+        // 年月筛选：显示该年/月最后一天的在职人数
+        conditions.push('ei.entry_date <= ?');
+        params.push(dateFilter.end);
+        
+        const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+        [totalResult] = await connection.execute(
+          `SELECT COUNT(*) as count FROM employee_info ei ${whereClause}`,
+          params
+        );
+      }
+    } else {
+      // 无时间筛选时，显示全部在职人数
+      const conditions = [...baseWhereConditions];
+      const params = [...baseParams];
+      conditions.push('ei.status = ?');
+      params.push('在职');
+      
+      const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
       [totalResult] = await connection.execute(
-        `SELECT COUNT(*) as count FROM employee_roster er ${totalWhereNoYear || ''}`,
-        totalParamsNoYear
+        `SELECT COUNT(*) as count FROM employee_info ei ${whereClause}`,
+        params
       );
     }
 
-    // 新入职人数（使用buildWhere统一处理年月筛选）
-    const { where: newWhere, params: newParams } = buildWhere('er', {
-      organizationRegion, region, department, workAge, education, year, month, dateField: 'entry_date'
-    });
-    const [newResult] = await connection.execute(
-      `SELECT COUNT(*) as count FROM employee_roster er ${newWhere || ''}`,
-      newParams
-    );
 
-    // 离职人数（从resignation_monitoring表统计）
-    const { where: resignedWhere, params: resignedParams } = buildWhere('rm', {
-      organizationRegion, region, department, workAge, education, year, month, dateField: 'resignation_date'
-    });
-    const [resignedResult] = await connection.execute(
-      `SELECT COUNT(*) as count FROM resignation_monitoring rm ${resignedWhere}`,
-      resignedParams
-    );
+    // 新入职人数（从employee_info表统计，按入职日期筛选，应用全局筛选条件）
+    let newResult;
+    if (dateFilter) {
+      console.log('入职人数查询 - 日期范围:', dateFilter);
+      const conditions = [...baseWhereConditions];
+      const params = [...baseParams];
+      conditions.push('ei.entry_date >= ? AND ei.entry_date <= ?');
+      params.push(dateFilter.start, dateFilter.end);
+      
+      const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+      console.log('入职人数查询 - SQL:', `SELECT COUNT(*) as count FROM employee_info ei ${whereClause}`);
+      console.log('入职人数查询 - 参数:', params);
+      
+      [newResult] = await connection.execute(
+        `SELECT COUNT(*) as count FROM employee_info ei ${whereClause}`,
+        params
+      );
+      
+      console.log('入职人数查询结果:', newResult[0]);
+    } else {
+      // 没有日期筛选时，统计所有入职人数（不限制年份）
+      const conditions = [...baseWhereConditions];
+      const params = [...baseParams];
+      
+      const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+      console.log('入职人数查询 - 默认统计全部入职人数');
+      console.log('入职人数查询 - SQL:', `SELECT COUNT(*) as count FROM employee_info ei ${whereClause}`);
+      console.log('入职人数查询 - 参数:', params);
+      
+      [newResult] = await connection.execute(
+        `SELECT COUNT(*) as count FROM employee_info ei ${whereClause}`,
+        params
+      );
+      console.log('入职人数查询结果:', newResult[0]);
+    }
 
-    // 异动人数（从personnel_changes表统计）
+    // 离职人数（从employee_info表统计，status='离职'，按入职日期筛选）
+    let resignedResult;
+    if (dateFilter) {
+      console.log('离职人数查询 - 日期范围:', dateFilter);
+      const conditions = [...baseWhereConditions];
+      const params = [...baseParams];
+      conditions.push('ei.status = ?');
+      params.push('离职');
+      conditions.push('ei.entry_date >= ? AND ei.entry_date <= ?');
+      params.push(dateFilter.start, dateFilter.end);
+      
+      const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+      console.log('离职人数查询 - SQL:', `SELECT COUNT(*) as count FROM employee_info ei ${whereClause}`);
+      console.log('离职人数查询 - 参数:', params);
+      
+      [resignedResult] = await connection.execute(
+        `SELECT COUNT(*) as count FROM employee_info ei ${whereClause}`,
+        params
+      );
+      
+      console.log('离职人数查询结果:', resignedResult[0]);
+    } else {
+      console.log('离职人数查询 - 无日期筛选');
+      const conditions = [...baseWhereConditions];
+      const params = [...baseParams];
+      conditions.push('ei.status = ?');
+      params.push('离职');
+      
+      const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+      console.log('离职人数查询 - SQL:', `SELECT COUNT(*) as count FROM employee_info ei ${whereClause}`);
+      console.log('离职人数查询 - 参数:', params);
+      
+      [resignedResult] = await connection.execute(
+        `SELECT COUNT(*) as count FROM employee_info ei ${whereClause}`,
+        params
+      );
+      
+      console.log('离职人数查询结果:', resignedResult[0]);
+    }
+
+    // 异动人数（从personnel_changes表统计，保持原有逻辑）
     const { where: transferWhere, params: transferParams } = buildWhere('pc', {
-      organizationRegion, region, department, workAge, education, year, month, dateField: 'change_date'
+      organizationRegion, region, department, workAge, education, hometown, year, month, dateField: 'change_date'
     });
     const [transferResult] = await connection.execute(
       `SELECT COUNT(*) as count FROM personnel_changes pc ${transferWhere}`,
@@ -386,94 +537,35 @@ async function getCurrentStats(pool, { organizationRegion, region, department, w
  */
 router.get('/work-age-distribution', async (req, res) => {
   try {
-    const { organizationRegion, region, department, workAge, education, year, month } = req.query;
+    const { organizationRegion, region, department, workAge, education, hometown, year, month, dateRange } = req.query;
     const pool = req.pool;
 
-    let whereConditions = [];
-    let params = [];
+    // 使用buildWhere函数构建查询条件，排除workAge避免递归筛选
+    const { where: whereClause, params } = buildWhere('ei', {
+      organizationRegion, region, department, education, hometown, year, month, dateRange
+    });
 
-    if (organizationRegion) {
-      // 处理组织区域参数
-      let orgRegionValue = organizationRegion;
-      if (typeof organizationRegion === 'object' && organizationRegion.id) {
-        orgRegionValue = organizationRegion.id;
-      }
-
-      // 根据组织区域筛选对应的具体区域
-      let regionList = [];
-      if (orgRegionValue === '华东') {
-        regionList = ['总部', '杭州', '上海', '宁波', '义乌'];
-      } else if (orgRegionValue === '华北') {
-        regionList = ['合肥'];
-      } else if (orgRegionValue === '华南') {
-        regionList = ['中山', '厦门', '广州', '泉州', '深圳'];
-      }
-
-      if (regionList.length > 0) {
-        const placeholders = regionList.map(() => '?').join(',');
-        whereConditions.push(`region IN (${placeholders})`);
-        params.push(...regionList);
-      }
-    } else if (region) {
-      whereConditions.push('er.region = ?');
-      params.push(region);
-    }
-
-    if (department) {
-      whereConditions.push('er.department = ?');
-      params.push(department);
-    }
-
-    if (workAge) {
-      // 将司龄显示值转换为月份范围查询
-      const monthsRange = getWorkAgeMonthsRange(workAge);
-      if (monthsRange) {
-        whereConditions.push('er.work_age_months >= ? AND er.work_age_months < ?');
-        params.push(monthsRange.min, monthsRange.max);
-      }
-    }
-
-    if (education) {
-      const educationValues = reverseTransformEducation(education);
-      if (educationValues.length > 0) {
-        const placeholders = educationValues.map(() => '?').join(',');
-        whereConditions.push(`er.education IN (${placeholders})`);
-        params.push(...educationValues);
-      }
-    }
-
-    // 年/月时间范围（按入职日期过滤）
-    const dateRange = getDateRange(year, month);
-    if (dateRange) {
-      whereConditions.push('er.entry_date BETWEEN ? AND ?');
-      params.push(dateRange.start, dateRange.end);
-    }
-
-    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+    // 添加在职状态筛选
+    const finalWhere = whereClause ? `${whereClause} AND ei.status = ?` : 'WHERE ei.status = ?';
+    const finalParams = [...params, '在职'];
 
     const connection = await pool.getConnection();
 
     try {
       const [rows] = await connection.execute(
         `SELECT work_age_months
-         FROM employee_roster er
-         ${whereClause}`,
-        params
+         FROM employee_info ei
+         ${finalWhere}`,
+        finalParams
       );
 
       // 统计各工龄段人数
       const distribution = {
         '1年以下': 0,
-        '1-2年': 0,
-        '2-3年': 0,
-        '3-4年': 0,
-        '4-5年': 0,
-        '5-6年': 0,
-        '6-7年': 0,
-        '7-8年': 0,
-        '8-9年': 0,
-        '9-10年': 0,
-        '10年以上': 0
+        '1-3年': 0,
+        '3-6年': 0,
+        '6-12年': 0,
+        '12年以上': 0
       };
 
       rows.forEach(row => {
@@ -498,80 +590,26 @@ router.get('/work-age-distribution', async (req, res) => {
  */
 router.get('/education-distribution', async (req, res) => {
   try {
-    const { organizationRegion, region, department, workAge, education, year, month } = req.query;
+    const { organizationRegion, region, department, workAge, education, hometown, year, month, dateRange } = req.query;
     const pool = req.pool;
 
-    let whereConditions = [];
-    let params = [];
+    // 使用buildWhere函数构建查询条件，排除education避免递归筛选
+    const { where: whereClause, params } = buildWhere('ei', {
+      organizationRegion, region, department, workAge, hometown, year, month, dateRange
+    });
 
-    if (organizationRegion) {
-      // 处理组织区域参数
-      let orgRegionValue = organizationRegion;
-      if (typeof organizationRegion === 'object' && organizationRegion.id) {
-        orgRegionValue = organizationRegion.id;
-      }
-
-      // 根据组织区域筛选对应的具体区域
-      let regionList = [];
-      if (orgRegionValue === '华东') {
-        regionList = ['总部', '杭州', '上海', '宁波', '义乌'];
-      } else if (orgRegionValue === '华北') {
-        regionList = ['合肥'];
-      } else if (orgRegionValue === '华南') {
-        regionList = ['中山', '厦门', '广州', '泉州', '深圳'];
-      }
-
-      if (regionList.length > 0) {
-        const placeholders = regionList.map(() => '?').join(',');
-        whereConditions.push(`er.region IN (${placeholders})`);
-        params.push(...regionList);
-      }
-    } else if (region) {
-      whereConditions.push('er.region = ?');
-      params.push(region);
-    }
-
-    if (department) {
-      whereConditions.push('er.department = ?');
-      params.push(department);
-    }
-
-    if (workAge) {
-      // 将司龄显示值转换为月份范围查询
-      const monthsRange = getWorkAgeMonthsRange(workAge);
-      if (monthsRange) {
-        whereConditions.push('er.work_age_months >= ? AND er.work_age_months < ?');
-        params.push(monthsRange.min, monthsRange.max);
-      }
-    }
-
-    if (education) {
-      // 使用反向转换函数获取数据库中的实际学历值
-      const educationValues = reverseTransformEducation(education);
-      if (educationValues.length > 0) {
-        const placeholders = educationValues.map(() => '?').join(',');
-        whereConditions.push(`er.education IN (${placeholders})`);
-        params.push(...educationValues);
-      }
-    }
-
-    // 年/月时间范围（按入职日期过滤）
-    const dateRange = getDateRange(year, month);
-    if (dateRange) {
-      whereConditions.push('er.entry_date BETWEEN ? AND ?');
-      params.push(dateRange.start, dateRange.end);
-    }
-
-    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+    // 添加在职状态筛选
+    const finalWhere = whereClause ? `${whereClause} AND ei.status = ?` : 'WHERE ei.status = ?';
+    const finalParams = [...params, '在职'];
 
     const connection = await pool.getConnection();
 
     try {
       const [rows] = await connection.execute(
         `SELECT education
-         FROM employee_roster er
-         ${whereClause}`,
-        params
+         FROM employee_info ei
+         ${finalWhere}`,
+        finalParams
       );
 
       // 统计各学历段人数
@@ -606,24 +644,28 @@ router.get('/education-distribution', async (req, res) => {
 router.get('/department-stats', async (req, res) => {
   try {
     console.log('获取部门统计数据请求:', req.query);
-    const { organizationRegion, region, department, workAge, education, year, month } = req.query;
+    const { organizationRegion, region, department, workAge, education, hometown, year, month, dateRange } = req.query;
     const pool = req.pool;
 
-    // 使用统一的 buildWhere 函数
-    const { where: whereClause, params } = buildWhere('er', {
-      organizationRegion, region, department, workAge, education, year, month, dateField: 'entry_date'
+    // 使用buildWhere函数构建查询条件，排除department避免递归筛选
+    const { where: whereClause, params } = buildWhere('ei', {
+      organizationRegion, region, workAge, education, hometown, year, month, dateRange
     });
+
+    // 添加在职状态筛选
+    const finalWhere = whereClause ? `${whereClause} AND ei.status = ?` : 'WHERE ei.status = ?';
+    const finalParams = [...params, '在职'];
 
     const connection = await pool.getConnection();
 
     try {
       const [rows] = await connection.execute(
         `SELECT department, COUNT(*) as count
-         FROM employee_roster er
-         ${whereClause}
+         FROM employee_info ei
+         ${finalWhere}
          GROUP BY department
          ORDER BY count DESC`,
-        params
+        finalParams
       );
 
       console.log('部门统计数据查询结果:', rows);
@@ -680,7 +722,7 @@ router.get('/filter-options', async (req, res) => {
       const areaStr = area.toString();
 
       if (areaStr === '总部') return '华东';
-      if (areaStr === '合肥') return '华北';
+      if (areaStr === '合肥') return '华东';
       if (['杭州', '上海', '宁波', '义乌'].includes(areaStr)) return '华东';
       return '华南';
     }).filter(region => region !== ''))].sort();
@@ -706,37 +748,6 @@ router.get('/filter-options', async (req, res) => {
   }
 });
 
-/**
- * 将司龄显示值转换为月份范围
- */
-function getWorkAgeMonthsRange(workAgeDisplay) {
-  switch (workAgeDisplay) {
-    case '1年以下':
-      return { min: 0, max: 12 };
-    case '1-2年':
-      return { min: 12, max: 24 };
-    case '2-3年':
-      return { min: 24, max: 36 };
-    case '3-4年':
-      return { min: 36, max: 48 };
-    case '4-5年':
-      return { min: 48, max: 60 };
-    case '5-6年':
-      return { min: 60, max: 72 };
-    case '6-7年':
-      return { min: 72, max: 84 };
-    case '7-8年':
-      return { min: 84, max: 96 };
-    case '8-9年':
-      return { min: 96, max: 108 };
-    case '9-10年':
-      return { min: 108, max: 120 };
-    case '10年以上':
-      return { min: 120, max: 9999 };
-    default:
-      return null;
-  }
-}
 
 /**
  * 获取人才流失统计数据
@@ -750,23 +761,27 @@ router.get('/turnover-stats', async (req, res) => {
     let whereConditions = [];
     let params = [];
 
+    // 添加离职状态筛选
+    whereConditions.push('ei.status = ?');
+    params.push('离职');
+
     if (region) {
-      whereConditions.push('rm.region = ?');
+      whereConditions.push('ei.region = ?');
       params.push(region);
     }
 
     if (department) {
-      whereConditions.push('rm.department = ?');
+      whereConditions.push('ei.department = ?');
       params.push(department);
     }
 
     if (reason) {
-      whereConditions.push('rm.resignation_reason = ?');
+      whereConditions.push('ei.resignation_reason = ?');
       params.push(reason);
     }
 
     if (position) {
-      whereConditions.push('rm.position = ?');
+      whereConditions.push('ei.position = ?');
       params.push(position);
     }
 
@@ -774,16 +789,16 @@ router.get('/turnover-stats', async (req, res) => {
     if (tenure) {
       switch (tenure) {
         case '1-3月':
-          whereConditions.push('DATEDIFF(rm.resignation_date, rm.entry_date) <= 90');
+          whereConditions.push('DATEDIFF(ei.resignation_date, ei.entry_date) <= 90');
           break;
         case '3-6月':
-          whereConditions.push('DATEDIFF(rm.resignation_date, rm.entry_date) > 90 AND DATEDIFF(rm.resignation_date, rm.entry_date) <= 180');
+          whereConditions.push('DATEDIFF(ei.resignation_date, ei.entry_date) > 90 AND DATEDIFF(ei.resignation_date, ei.entry_date) <= 180');
           break;
         case '6-12月':
-          whereConditions.push('DATEDIFF(rm.resignation_date, rm.entry_date) > 180 AND DATEDIFF(rm.resignation_date, rm.entry_date) <= 365');
+          whereConditions.push('DATEDIFF(ei.resignation_date, ei.entry_date) > 180 AND DATEDIFF(ei.resignation_date, ei.entry_date) <= 365');
           break;
         case '1年以上':
-          whereConditions.push('DATEDIFF(rm.resignation_date, rm.entry_date) > 365');
+          whereConditions.push('DATEDIFF(ei.resignation_date, ei.entry_date) > 365');
           break;
       }
     }
@@ -791,7 +806,7 @@ router.get('/turnover-stats', async (req, res) => {
     // 日期范围条件
     const dateRange = getDateRange(year, month);
     if (dateRange) {
-      whereConditions.push('rm.resignation_date BETWEEN ? AND ?');
+      whereConditions.push('ei.resignation_date BETWEEN ? AND ?');
       params.push(dateRange.start, dateRange.end);
     }
 
@@ -803,16 +818,14 @@ router.get('/turnover-stats', async (req, res) => {
       // 获取总离职人数
       const [totalResignedResult] = await connection.execute(
         `SELECT COUNT(*) as count
-         FROM resignation_monitoring rm
+         FROM employee_info ei
          ${whereClause}`,
         params
       );
 
-      // 获取总员工数（在职+离职）
+      // 获取总员工数（从employee_info表统计）
       const [totalEmployeesResult] = await connection.execute(
-        `SELECT
-          (SELECT COUNT(*) FROM employee_roster) +
-          (SELECT COUNT(*) FROM resignation_monitoring) as total`
+        `SELECT COUNT(*) as total FROM employee_info`
       );
 
       const totalResigned = totalResignedResult[0].count;
@@ -830,7 +843,7 @@ router.get('/turnover-stats', async (req, res) => {
           const prevParams = [...params.slice(0, -2), prevDateRange.start, prevDateRange.end];
           const [prevResult] = await connection.execute(
             `SELECT COUNT(*) as count
-             FROM resignation_monitoring rm
+             FROM employee_info ei
              ${whereClause}`,
             prevParams
           );
@@ -843,7 +856,7 @@ router.get('/turnover-stats', async (req, res) => {
           const lastYearParams = [...params.slice(0, -2), lastYearDateRange.start, lastYearDateRange.end];
           const [lastYearResult] = await connection.execute(
             `SELECT COUNT(*) as count
-             FROM resignation_monitoring rm
+             FROM employee_info ei
              ${whereClause}`,
             lastYearParams
           );
@@ -887,23 +900,27 @@ router.get('/turnover-department-distribution', async (req, res) => {
     let whereConditions = [];
     let params = [];
 
+    // 添加离职状态筛选
+    whereConditions.push('ei.status = ?');
+    params.push('离职');
+
     if (region) {
-      whereConditions.push('rm.region = ?');
+      whereConditions.push('ei.region = ?');
       params.push(region);
     }
 
     if (department) {
-      whereConditions.push('rm.department = ?');
+      whereConditions.push('ei.department = ?');
       params.push(department);
     }
 
     if (reason) {
-      whereConditions.push('rm.resignation_reason = ?');
+      whereConditions.push('ei.resignation_reason = ?');
       params.push(reason);
     }
 
     if (position) {
-      whereConditions.push('rm.position = ?');
+      whereConditions.push('ei.position = ?');
       params.push(position);
     }
 
@@ -911,23 +928,23 @@ router.get('/turnover-department-distribution', async (req, res) => {
     if (tenure) {
       switch (tenure) {
         case '1-3月':
-          whereConditions.push('DATEDIFF(rm.resignation_date, rm.entry_date) <= 90');
+          whereConditions.push('DATEDIFF(ei.resignation_date, ei.entry_date) <= 90');
           break;
         case '3-6月':
-          whereConditions.push('DATEDIFF(rm.resignation_date, rm.entry_date) > 90 AND DATEDIFF(rm.resignation_date, rm.entry_date) <= 180');
+          whereConditions.push('DATEDIFF(ei.resignation_date, ei.entry_date) > 90 AND DATEDIFF(ei.resignation_date, ei.entry_date) <= 180');
           break;
         case '6-12月':
-          whereConditions.push('DATEDIFF(rm.resignation_date, rm.entry_date) > 180 AND DATEDIFF(rm.resignation_date, rm.entry_date) <= 365');
+          whereConditions.push('DATEDIFF(ei.resignation_date, ei.entry_date) > 180 AND DATEDIFF(ei.resignation_date, ei.entry_date) <= 365');
           break;
         case '1年以上':
-          whereConditions.push('DATEDIFF(rm.resignation_date, rm.entry_date) > 365');
+          whereConditions.push('DATEDIFF(ei.resignation_date, ei.entry_date) > 365');
           break;
       }
     }
 
     const dateRange = getDateRange(year, month);
     if (dateRange) {
-      whereConditions.push('rm.resignation_date BETWEEN ? AND ?');
+      whereConditions.push('ei.resignation_date BETWEEN ? AND ?');
       params.push(dateRange.start, dateRange.end);
     }
 
@@ -938,7 +955,7 @@ router.get('/turnover-department-distribution', async (req, res) => {
     try {
       const [rows] = await connection.execute(
         `SELECT department, COUNT(*) as count
-         FROM resignation_monitoring rm
+         FROM employee_info ei
          ${whereClause}
          GROUP BY department
          ORDER BY count DESC
@@ -972,18 +989,22 @@ router.get('/turnover-reason-analysis', async (req, res) => {
     let whereConditions = [];
     let params = [];
 
+    // 添加离职状态筛选
+    whereConditions.push('ei.status = ?');
+    params.push('离职');
+
     if (region) {
-      whereConditions.push('rm.region = ?');
+      whereConditions.push('ei.region = ?');
       params.push(region);
     }
 
     if (department) {
-      whereConditions.push('rm.department = ?');
+      whereConditions.push('ei.department = ?');
       params.push(department);
     }
 
     if (position) {
-      whereConditions.push('rm.position = ?');
+      whereConditions.push('ei.position = ?');
       params.push(position);
     }
 
@@ -991,28 +1012,28 @@ router.get('/turnover-reason-analysis', async (req, res) => {
     if (tenure) {
       switch (tenure) {
         case '1-3月':
-          whereConditions.push('DATEDIFF(rm.resignation_date, rm.entry_date) <= 90');
+          whereConditions.push('DATEDIFF(ei.resignation_date, ei.entry_date) <= 90');
           break;
         case '3-6月':
-          whereConditions.push('DATEDIFF(rm.resignation_date, rm.entry_date) > 90 AND DATEDIFF(rm.resignation_date, rm.entry_date) <= 180');
+          whereConditions.push('DATEDIFF(ei.resignation_date, ei.entry_date) > 90 AND DATEDIFF(ei.resignation_date, ei.entry_date) <= 180');
           break;
         case '6-12月':
-          whereConditions.push('DATEDIFF(rm.resignation_date, rm.entry_date) > 180 AND DATEDIFF(rm.resignation_date, rm.entry_date) <= 365');
+          whereConditions.push('DATEDIFF(ei.resignation_date, ei.entry_date) > 180 AND DATEDIFF(ei.resignation_date, ei.entry_date) <= 365');
           break;
         case '1年以上':
-          whereConditions.push('DATEDIFF(rm.resignation_date, rm.entry_date) > 365');
+          whereConditions.push('DATEDIFF(ei.resignation_date, ei.entry_date) > 365');
           break;
       }
     }
 
     const dateRange = getDateRange(year, month);
     if (dateRange) {
-      whereConditions.push('rm.resignation_date BETWEEN ? AND ?');
+      whereConditions.push('ei.resignation_date BETWEEN ? AND ?');
       params.push(dateRange.start, dateRange.end);
     }
 
     // 添加离职原因不为空的条件
-    whereConditions.push('rm.resignation_reason IS NOT NULL AND rm.resignation_reason != \'\'');
+    whereConditions.push('ei.resignation_reason IS NOT NULL AND ei.resignation_reason != \'\'');
 
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
@@ -1021,11 +1042,11 @@ router.get('/turnover-reason-analysis', async (req, res) => {
     try {
       const [rows] = await connection.execute(
         `SELECT resignation_reason, COUNT(*) as count
-         FROM resignation_monitoring rm
+         FROM employee_info ei
          ${whereClause}
          GROUP BY resignation_reason
          ORDER BY count DESC
-         LIMIT 20`,
+         LIMIT 30`,
         params
       );
 
@@ -1055,23 +1076,27 @@ router.get('/turnover-department-stats', async (req, res) => {
     let whereConditions = [];
     let params = [];
 
+    // 添加离职状态筛选
+    whereConditions.push('ei.status = ?');
+    params.push('离职');
+
     if (region) {
-      whereConditions.push('rm.region = ?');
+      whereConditions.push('ei.region = ?');
       params.push(region);
     }
 
     if (department) {
-      whereConditions.push('rm.department = ?');
+      whereConditions.push('ei.department = ?');
       params.push(department);
     }
 
     if (reason) {
-      whereConditions.push('rm.resignation_reason = ?');
+      whereConditions.push('ei.resignation_reason = ?');
       params.push(reason);
     }
 
     if (position) {
-      whereConditions.push('rm.position = ?');
+      whereConditions.push('ei.position = ?');
       params.push(position);
     }
 
@@ -1079,23 +1104,23 @@ router.get('/turnover-department-stats', async (req, res) => {
     if (tenure) {
       switch (tenure) {
         case '1-3月':
-          whereConditions.push('DATEDIFF(rm.resignation_date, rm.entry_date) <= 90');
+          whereConditions.push('DATEDIFF(ei.resignation_date, ei.entry_date) <= 90');
           break;
         case '3-6月':
-          whereConditions.push('DATEDIFF(rm.resignation_date, rm.entry_date) > 90 AND DATEDIFF(rm.resignation_date, rm.entry_date) <= 180');
+          whereConditions.push('DATEDIFF(ei.resignation_date, ei.entry_date) > 90 AND DATEDIFF(ei.resignation_date, ei.entry_date) <= 180');
           break;
         case '6-12月':
-          whereConditions.push('DATEDIFF(rm.resignation_date, rm.entry_date) > 180 AND DATEDIFF(rm.resignation_date, rm.entry_date) <= 365');
+          whereConditions.push('DATEDIFF(ei.resignation_date, ei.entry_date) > 180 AND DATEDIFF(ei.resignation_date, ei.entry_date) <= 365');
           break;
         case '1年以上':
-          whereConditions.push('DATEDIFF(rm.resignation_date, rm.entry_date) > 365');
+          whereConditions.push('DATEDIFF(ei.resignation_date, ei.entry_date) > 365');
           break;
       }
     }
 
     const dateRange = getDateRange(year, month);
     if (dateRange) {
-      whereConditions.push('rm.resignation_date BETWEEN ? AND ?');
+      whereConditions.push('ei.resignation_date BETWEEN ? AND ?');
       params.push(dateRange.start, dateRange.end);
     }
 
@@ -1106,10 +1131,10 @@ router.get('/turnover-department-stats', async (req, res) => {
     try {
       const [rows] = await connection.execute(
         `SELECT department, COUNT(*) as count
-         FROM resignation_monitoring rm
+         FROM employee_info ei
          ${whereClause}
          GROUP BY department
-         ORDER BY count DESC`,
+         ORDER BY count ASC`,
         params
       );
 
@@ -1139,18 +1164,22 @@ router.get('/turnover-position-distribution', async (req, res) => {
     let whereConditions = [];
     let params = [];
 
+    // 添加离职状态筛选
+    whereConditions.push('ei.status = ?');
+    params.push('离职');
+
     if (region) {
-      whereConditions.push('rm.region = ?');
+      whereConditions.push('ei.region = ?');
       params.push(region);
     }
 
     if (department) {
-      whereConditions.push('rm.department = ?');
+      whereConditions.push('ei.department = ?');
       params.push(department);
     }
 
     if (reason) {
-      whereConditions.push('rm.resignation_reason = ?');
+      whereConditions.push('ei.resignation_reason = ?');
       params.push(reason);
     }
 
@@ -1158,28 +1187,28 @@ router.get('/turnover-position-distribution', async (req, res) => {
     if (tenure) {
       switch (tenure) {
         case '1-3月':
-          whereConditions.push('DATEDIFF(rm.resignation_date, rm.entry_date) <= 90');
+          whereConditions.push('DATEDIFF(ei.resignation_date, ei.entry_date) <= 90');
           break;
         case '3-6月':
-          whereConditions.push('DATEDIFF(rm.resignation_date, rm.entry_date) > 90 AND DATEDIFF(rm.resignation_date, rm.entry_date) <= 180');
+          whereConditions.push('DATEDIFF(ei.resignation_date, ei.entry_date) > 90 AND DATEDIFF(ei.resignation_date, ei.entry_date) <= 180');
           break;
         case '6-12月':
-          whereConditions.push('DATEDIFF(rm.resignation_date, rm.entry_date) > 180 AND DATEDIFF(rm.resignation_date, rm.entry_date) <= 365');
+          whereConditions.push('DATEDIFF(ei.resignation_date, ei.entry_date) > 180 AND DATEDIFF(ei.resignation_date, ei.entry_date) <= 365');
           break;
         case '1年以上':
-          whereConditions.push('DATEDIFF(rm.resignation_date, rm.entry_date) > 365');
+          whereConditions.push('DATEDIFF(ei.resignation_date, ei.entry_date) > 365');
           break;
       }
     }
 
     const dateRange = getDateRange(year, month);
     if (dateRange) {
-      whereConditions.push('rm.resignation_date BETWEEN ? AND ?');
+      whereConditions.push('ei.resignation_date BETWEEN ? AND ?');
       params.push(dateRange.start, dateRange.end);
     }
 
     // 添加岗位不为空的条件
-    whereConditions.push('rm.position IS NOT NULL AND rm.position != \'\'');
+    whereConditions.push('ei.position IS NOT NULL AND ei.position != \'\'');
 
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
@@ -1188,7 +1217,7 @@ router.get('/turnover-position-distribution', async (req, res) => {
     try {
       const [rows] = await connection.execute(
         `SELECT position, COUNT(*) as count
-         FROM resignation_monitoring rm
+         FROM employee_info ei
          ${whereClause}
          GROUP BY position
          ORDER BY count DESC`,
@@ -1221,34 +1250,38 @@ router.get('/turnover-tenure-distribution', async (req, res) => {
     let whereConditions = [];
     let params = [];
 
+    // 添加离职状态筛选
+    whereConditions.push('ei.status = ?');
+    params.push('离职');
+
     if (region) {
-      whereConditions.push('rm.region = ?');
+      whereConditions.push('ei.region = ?');
       params.push(region);
     }
 
     if (department) {
-      whereConditions.push('rm.department = ?');
+      whereConditions.push('ei.department = ?');
       params.push(department);
     }
 
     if (reason) {
-      whereConditions.push('rm.resignation_reason = ?');
+      whereConditions.push('ei.resignation_reason = ?');
       params.push(reason);
     }
 
     if (position) {
-      whereConditions.push('rm.position = ?');
+      whereConditions.push('ei.position = ?');
       params.push(position);
     }
 
     const dateRange = getDateRange(year, month);
     if (dateRange) {
-      whereConditions.push('rm.resignation_date BETWEEN ? AND ?');
+      whereConditions.push('ei.resignation_date BETWEEN ? AND ?');
       params.push(dateRange.start, dateRange.end);
     }
 
     // 添加必要字段不为空的条件
-    whereConditions.push('rm.entry_date IS NOT NULL AND rm.resignation_date IS NOT NULL');
+    whereConditions.push('ei.entry_date IS NOT NULL AND ei.resignation_date IS NOT NULL');
 
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
@@ -1258,13 +1291,13 @@ router.get('/turnover-tenure-distribution', async (req, res) => {
       const [rows] = await connection.execute(
         `SELECT
           CASE
-            WHEN DATEDIFF(rm.resignation_date, rm.entry_date) <= 90 THEN '1-3月'
-            WHEN DATEDIFF(rm.resignation_date, rm.entry_date) <= 180 THEN '3-6月'
-            WHEN DATEDIFF(rm.resignation_date, rm.entry_date) <= 365 THEN '6-12月'
+            WHEN DATEDIFF(ei.resignation_date, ei.entry_date) <= 90 THEN '1-3月'
+            WHEN DATEDIFF(ei.resignation_date, ei.entry_date) <= 180 THEN '3-6月'
+            WHEN DATEDIFF(ei.resignation_date, ei.entry_date) <= 365 THEN '6-12月'
             ELSE '1年以上'
           END as tenure_range,
           COUNT(*) as count
-         FROM resignation_monitoring rm
+         FROM employee_info ei
          ${whereClause}
          GROUP BY tenure_range
          ORDER BY

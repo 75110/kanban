@@ -29,5 +29,6 @@ export default defineConfig({
         // 不要重写路径，保持 /api 前缀
       }
     }
-  }
+  },
+  assetsInclude: ['**/*.json']
 })
