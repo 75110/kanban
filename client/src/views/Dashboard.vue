@@ -236,8 +236,11 @@
 
       <!-- 人才流失分析主布局 - 三列网格布局 -->
       <div class="turnover-grid-layout">
+        <!--  右侧占比为1/3，左侧占比为2/3 -->
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 8px;">
+          <div>
         <!-- 第一行：总离职人数和离职率卡片（占左边两列） -->
-        <div class="turnover-top-row">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
           <div class="turnover-card turnover-total-card">
             <StatCard title="总离职人数" :value="turnoverStats.totalResigned || 0" type="danger"
               :growth="getTurnoverGrowthRate('totalResigned')" :growth-type="getGrowthType()" />
@@ -251,7 +254,7 @@
         </div>
 
         <!-- 第二行：左侧两个饼图（垂直排列），中间词云图，右侧各部门离职人数 -->
-        <div class="turnover-main-content">
+        <div class="turnover-main-content" style="grid-template-columns: 1fr 1fr;">
           <!-- 第一列：两个饼图垂直排列 -->
           <div class="turnover-left-column">
             <!-- 离职部门分析饼图 -->
@@ -276,9 +279,11 @@
                 :data="turnoverReasonData" :loading="turnoverLoading.reason" @chart-click="handleTurnoverChartClick" />
             </div>
           </div>
-          
-          <!-- 第三列：各部门离职人数（水平条形图） -->
-          <div class="turnover-right-column">
+        </div>
+      </div>
+      <div>
+        <!-- 第三列：各部门离职人数（水平条形图） -->
+        <div class="turnover-right-column">
             <div class="turnover-card turnover-department-stats">
               <ChartCard v-if="turnoverDepartmentStatsData" title="各部门离职人数" type="bar" :horizontal="true"
                 chart-type="resignationDepartmentStats" :data="turnoverDepartmentStatsData"
@@ -286,7 +291,7 @@
             </div>
           </div>
         </div>
-
+      </div>
         <!-- 第三行：各岗位离职人数 -->
         <div class="turnover-bottom-row">
           <div class="turnover-card turnover-position-bar">
