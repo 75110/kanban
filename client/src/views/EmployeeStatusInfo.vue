@@ -234,8 +234,9 @@ const tableColumns = ref([
 // 默认可见的列 - 显示最常用的列，包括状态字段
 const defaultVisibleColumns = ref([
   'sequence_number', 'name', 'department', 'position', 'gender', 'age', 
-  'education', 'work_age_months', 'entry_date', 'status', 'personal_contact', 
-  'labor_relation_affiliation', 'social_insurance_affiliation', 'operation'
+  'education', 'work_age_months', 'entry_date', 'status', 'resignation_date', 
+  'resignation_reason', 'personal_contact', 'labor_relation_affiliation', 
+  'social_insurance_affiliation', 'operation'
 ])
 
 // 当前可见的列
@@ -504,10 +505,15 @@ const handleDelete = async (row) => {
         type: 'warning'
       }
     )
+
+    await employeeApi.deleteStatusInfo(row.id)
     ElMessage.success('删除成功')
     fetchEmployeeData()
-  } catch {
-    // 用户取消删除
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('删除员工失败:', error)
+      ElMessage.error('删除失败')
+    }
   }
 }
 

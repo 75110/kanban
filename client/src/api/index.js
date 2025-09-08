@@ -224,6 +224,11 @@ export const employeeApi = {
     return api.post('/employee/status-info/import', data);
   },
 
+  // 删除单个员工
+  deleteStatusInfo(id) {
+    return api.delete(`/employee/status-info/${id}`);
+  },
+
   // 删除所有在职离职信息
   deleteAllStatusInfo() {
     return api.delete('/employee/status-info/all');

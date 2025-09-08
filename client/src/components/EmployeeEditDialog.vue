@@ -294,6 +294,36 @@
             </el-col>
           </el-row>
 
+          <!-- 状态信息 -->
+          <el-divider content-position="left">状态信息</el-divider>
+          <el-row :gutter="20">
+            <el-col :span="8">
+              <el-form-item label="状态" prop="status">
+                <el-select v-model="basicForm.status" placeholder="请选择状态" style="width: 100%" @change="handleStatusChange">
+                  <el-option label="在职" value="在职" />
+                  <el-option label="离职" value="离职" />
+                </el-select>
+              </el-form-item>
+            </el-col>
+            <el-col :span="8">
+              <el-form-item label="离职时间" prop="resignation_date">
+                <el-date-picker
+                  v-model="basicForm.resignation_date"
+                  type="date"
+                  placeholder="选择离职时间"
+                  style="width: 100%"
+                />
+              </el-form-item>
+            </el-col>
+          </el-row>
+          <el-row :gutter="20">
+            <el-col :span="24">
+              <el-form-item label="离职原因" prop="resignation_reason">
+                <el-input v-model="basicForm.resignation_reason" type="textarea" :rows="3" placeholder="请输入离职原因" />
+              </el-form-item>
+            </el-col>
+          </el-row>
+
           <!-- 备注信息 -->
           <el-divider content-position="left">备注信息</el-divider>
           <el-row :gutter="20">
@@ -318,46 +348,6 @@
         </el-form>
       </el-tab-pane>
 
-      <!-- 离职操作 -->
-      <el-tab-pane label="离职操作" name="resignation">
-        <el-form ref="resignationFormRef" :model="resignationForm" :rules="resignationRules" label-width="120px"
-          class="edit-form">
-          <el-row :gutter="20">
-            <el-col :span="12">
-              <el-form-item label="离职时间" prop="resignation_date">
-                <el-date-picker v-model="resignationForm.resignation_date" type="date" placeholder="选择离职时间"
-                  style="width: 100%" />
-              </el-form-item>
-            </el-col>
-            <el-col :span="12">
-              <el-form-item label="离职类型" prop="resignation_type">
-                <el-select v-model="resignationForm.resignation_type" placeholder="请选择离职类型" style="width: 100%">
-                  <el-option label="主动离职" value="主动离职" />
-                  <el-option label="被动离职" value="被动离职" />
-                  <el-option label="合同到期" value="合同到期" />
-                  <el-option label="试用期离职" value="试用期离职" />
-                </el-select>
-              </el-form-item>
-            </el-col>
-          </el-row>
-          <el-row :gutter="20">
-            <el-col :span="24">
-              <el-form-item label="离职原因" prop="resignation_reason">
-                <el-input v-model="resignationForm.resignation_reason" type="textarea" :rows="3"
-                  placeholder="请输入离职原因" />
-              </el-form-item>
-            </el-col>
-          </el-row>
-          <el-row :gutter="20">
-            <el-col :span="24">
-              <el-form-item label="备注" prop="resignation_remarks">
-                <el-input v-model="resignationForm.resignation_remarks" type="textarea" :rows="3"
-                  placeholder="请输入备注信息" />
-              </el-form-item>
-            </el-col>
-          </el-row>
-        </el-form>
-      </el-tab-pane>
 
       <!-- 调动操作 -->
       <el-tab-pane label="调动操作" name="transfer">
@@ -478,7 +468,6 @@ const positions = ref([])
 
 // 表单引用
 const basicFormRef = ref()
-const resignationFormRef = ref()
 const transferFormRef = ref()
 
 // 基本信息表单（完整40个字段）
@@ -521,18 +510,14 @@ const basicForm = reactive({
   social_insurance_affiliation: '',
   non_compete_agreement: '',
   confidentiality_agreement: '',
+  status: '在职', // 默认在职状态
+  resignation_date: '',
+  resignation_reason: '',
   remarks1: '',
   remarks2: '',
   originalName: '' // 用于标识原始姓名
 })
 
-// 离职表单
-const resignationForm = reactive({
-  resignation_date: '',
-  resignation_type: '',
-  resignation_reason: '',
-  resignation_remarks: ''
-})
 
 // 调动表单
 const transferForm = reactive({
@@ -552,14 +537,34 @@ const basicRules = {
   name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
   department: [{ required: true, message: '请输入部门', trigger: 'blur' }],
   position: [{ required: true, message: '请输入岗位', trigger: 'blur' }],
-  region: [{ required: true, message: '请输入区域', trigger: 'blur' }]
+  region: [{ required: true, message: '请输入区域', trigger: 'blur' }],
+  status: [{ required: true, message: '请选择状态', trigger: 'change' }],
+  resignation_date: [
+    { 
+      validator: (rule, value, callback) => {
+        if (basicForm.status === '离职' && !value) {
+          callback(new Error('离职状态下必须填写离职时间'))
+        } else {
+          callback()
+        }
+      }, 
+      trigger: 'change' 
+    }
+  ],
+  resignation_reason: [
+    { 
+      validator: (rule, value, callback) => {
+        if (basicForm.status === '离职' && !value) {
+          callback(new Error('离职状态下必须填写离职原因'))
+        } else {
+          callback()
+        }
+      }, 
+      trigger: 'blur' 
+    }
+  ]
 }
 
-const resignationRules = {
-  resignation_date: [{ required: true, message: '请选择离职时间', trigger: 'change' }],
-  resignation_type: [{ required: true, message: '请选择离职类型', trigger: 'change' }],
-  resignation_reason: [{ required: true, message: '请输入离职原因', trigger: 'blur' }]
-}
 
 const transferRules = {
   new_department: [{ required: true, message: '请选择新部门', trigger: 'change' }],
@@ -629,6 +634,9 @@ const initFormData = () => {
   basicForm.social_insurance_affiliation = data.social_insurance_affiliation || ''
   basicForm.non_compete_agreement = data.non_compete_agreement || ''
   basicForm.confidentiality_agreement = data.confidentiality_agreement || ''
+  basicForm.status = data.status || '在职'
+  basicForm.resignation_date = data.resignation_date || ''
+  basicForm.resignation_reason = data.resignation_reason || ''
   basicForm.remarks1 = data.remarks1 || ''
   basicForm.remarks2 = data.remarks2 || ''
   basicForm.originalName = data.name || ''
@@ -644,11 +652,6 @@ const initFormData = () => {
   transferForm.change_type = ''
   transferForm.change_remarks = ''
 
-  // 重置离职表单
-  resignationForm.resignation_date = ''
-  resignationForm.resignation_type = ''
-  resignationForm.resignation_reason = ''
-  resignationForm.resignation_remarks = ''
 
   // 重置到基本信息标签页
   activeTab.value = 'basic'
@@ -694,6 +697,15 @@ const calculateWorkAge = () => {
   }
 }
 
+// 处理状态变化
+const handleStatusChange = (status) => {
+  if (status === '在职') {
+    // 如果切换到在职状态，清空离职相关字段
+    basicForm.resignation_date = ''
+    basicForm.resignation_reason = ''
+  }
+}
+
 // 关闭对话框
 const handleClose = () => {
   dialogVisible.value = false
@@ -706,8 +718,6 @@ const handleConfirm = async () => {
 
     if (activeTab.value === 'basic') {
       await handleBasicUpdate()
-    } else if (activeTab.value === 'resignation') {
-      await handleResignation()
     } else if (activeTab.value === 'transfer') {
       await handleTransfer()
     }
@@ -761,6 +771,9 @@ const handleBasicUpdate = async () => {
     if (submitData.graduation_date) {
       submitData.graduation_date = formatDateSafely(submitData.graduation_date)
     }
+    if (submitData.resignation_date) {
+      submitData.resignation_date = formatDateSafely(submitData.resignation_date)
+    }
 
     const employeeId = props.employeeData.sequence_number || props.employeeData.name
     await employeeApi.updateRoster(employeeId, submitData)
@@ -773,42 +786,6 @@ const handleBasicUpdate = async () => {
   }
 }
 
-// 处理离职操作
-const handleResignation = async () => {
-  const formRef = resignationFormRef.value
-  if (!formRef) return
-
-  const valid = await formRef.validate().catch(() => false)
-  if (!valid) return
-
-  try {
-    await ElMessageBox.confirm(
-      `确定要将 ${props.employeeData.name} 设置为离职状态吗？此操作将把员工信息迁移到离职监控表，并从花名册中删除。`,
-      '确认离职',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    )
-
-    const resignationData = {
-      employeeId: props.employeeData.sequence_number || props.employeeData.name,
-      name: props.employeeData.name,
-      ...resignationForm
-    }
-
-    await employeeApi.postResignation(resignationData)
-
-    ElMessage.success('离职操作完成，员工信息已迁移到离职监控表')
-    emit('success')
-    handleClose()
-  } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error(error.response?.data?.error || '离职操作失败')
-    }
-  }
-}
 
 // 处理调动操作
 const handleTransfer = async () => {

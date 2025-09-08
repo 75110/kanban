@@ -797,9 +797,9 @@ router.post('/roster', async (req, res) => {
     const connection = await pool.getConnection();
 
     try {
-      // 直接插入到employee_roster表
+      // 直接插入到employee_info表
       const insertSql = `
-        INSERT INTO employee_roster (
+        INSERT INTO employee_info (
           sequence_number, region, department, position, name, gender, ethnicity,
           political_status, employee_type, insurance_type, birth_date, birthday,
           entry_date, actual_regularization_date, remarks, contract_end_date,
@@ -808,8 +808,9 @@ router.post('/roster', async (req, res) => {
           interviewer_name, marital_status, current_address, personal_contact,
           emergency_contact_name, emergency_contact_phone, bank_card_number,
           bank_branch_info, labor_relation_affiliation, social_insurance_affiliation,
-          non_compete_agreement, confidentiality_agreement, remarks1, remarks2
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          non_compete_agreement, confidentiality_agreement, status, resignation_date,
+          resignation_reason, remarks1, remarks2, remarks3
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
 
       const [result] = await connection.execute(insertSql, [
@@ -851,8 +852,12 @@ router.post('/roster', async (req, res) => {
         employeeData.social_insurance_affiliation || null,
         employeeData.non_compete_agreement || null,
         employeeData.confidentiality_agreement || null,
+        employeeData.status || '在职',
+        employeeData.resignation_date || null,
+        employeeData.resignation_reason || null,
         employeeData.remarks1 || null,
-        employeeData.remarks2 || null
+        employeeData.remarks2 || null,
+        employeeData.remarks3 || null
       ]);
 
       res.json({
@@ -1438,8 +1443,12 @@ router.put('/roster/:id', async (req, res) => {
         social_insurance_affiliation: 'social_insurance_affiliation',
         non_compete_agreement: 'non_compete_agreement',
         confidentiality_agreement: 'confidentiality_agreement',
+        status: 'status',
+        resignation_date: 'resignation_date',
+        resignation_reason: 'resignation_reason',
         remarks1: 'remarks1',
-        remarks2: 'remarks2'
+        remarks2: 'remarks2',
+        remarks3: 'remarks3'
       };
 
       // 遍历更新数据，只添加有值的字段
@@ -1470,7 +1479,7 @@ router.put('/roster/:id', async (req, res) => {
       updateValues.push(employeeId, updateData.originalName || updateData.name);
 
       const updateSql = `
-        UPDATE employee_roster
+        UPDATE employee_info
         SET ${updateFields.join(', ')}
         WHERE sequence_number = ? OR name = ?
       `;
@@ -1670,7 +1679,7 @@ router.post('/transfer', async (req, res) => {
         updateValues.push(transferData.employeeId, transferData.name);
 
         const updateSql = `
-          UPDATE employee_roster
+          UPDATE employee_info
           SET ${updateFields.join(', ')}
           WHERE sequence_number = ? OR name = ?
         `;
@@ -2370,6 +2379,52 @@ router.put('/awards/:id', async (req, res) => {
   } catch (error) {
     console.error('更新获奖记录失败:', error);
     res.status(500).json({ error: '更新获奖记录失败' });
+  }
+});
+
+/**
+ * 删除单个员工
+ */
+router.delete('/status-info/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log('收到删除员工请求:', id);
+
+    const pool = req.pool;
+    const connection = await pool.getConnection();
+
+    try {
+      // 从employee_info表删除员工
+      const deleteSql = `
+        DELETE FROM employee_info
+        WHERE id = ? OR sequence_number = ? OR name = ?
+      `;
+
+      const [result] = await connection.execute(deleteSql, [id, id, id]);
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({
+          success: false,
+          message: '未找到该员工信息'
+        });
+      }
+
+      res.json({
+        success: true,
+        message: '员工删除成功'
+      });
+
+    } finally {
+      connection.release();
+    }
+
+  } catch (error) {
+    console.error('删除员工失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '删除员工失败',
+      error: error.message
+    });
   }
 });
 
