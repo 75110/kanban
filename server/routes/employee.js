@@ -1864,4 +1864,525 @@ router.delete('/changes', async (req, res) => {
   }
 });
 
+/**
+ * 获取在职离职信息列表
+ */
+router.get('/status-info', async (req, res) => {
+  try {
+    const {
+      page = 1,
+      pageSize = 20,
+      region,
+      department,
+      name,
+      position,
+      status,
+      sortField,
+      sortOrder
+    } = req.query;
+
+    console.log('收到在职离职信息请求:', { page, pageSize, region, department, name, position, status, sortField, sortOrder });
+
+    const pool = req.pool;
+    const connection = await pool.getConnection();
+
+    try {
+      let whereConditions = [];
+      let params = [];
+
+      if (region) {
+        whereConditions.push('region LIKE ?');
+        params.push(`%${region}%`);
+      }
+
+      if (department) {
+        whereConditions.push('department LIKE ?');
+        params.push(`%${department}%`);
+      }
+
+      if (name) {
+        whereConditions.push('name LIKE ?');
+        params.push(`%${name}%`);
+      }
+
+      if (position) {
+        whereConditions.push('position LIKE ?');
+        params.push(`%${position}%`);
+      }
+
+      if (status) {
+        whereConditions.push('status = ?');
+        params.push(status);
+      }
+
+      const whereClause = whereConditions.length > 0 ?
+        `WHERE ${whereConditions.join(' AND ')}` : '';
+
+      // 获取总数
+      const countSql = `SELECT COUNT(*) as total FROM employee_info ${whereClause}`;
+      const [countResult] = await connection.execute(countSql, params);
+      const total = countResult[0].total;
+
+      // 获取分页数据
+      const limit = Number.parseInt(pageSize, 10) || 20;
+      const offset = (Number.parseInt(page, 10) - 1) * limit;
+      const dataSql = `
+        SELECT
+          id, sequence_number, region, department, position, name, gender, ethnicity,
+          political_status, employee_type, insurance_type, birth_date, birthday,
+          entry_date, actual_regularization_date, remarks, contract_end_date, work_age_months,
+          id_card_number, id_card_address, age, hometown, graduation_school, major, education,
+          education_method, graduation_date, interviewer_name, marital_status, current_address,
+          personal_contact, emergency_contact_name, emergency_contact_phone, bank_card_number,
+          bank_branch_info, labor_relation_affiliation, social_insurance_affiliation,
+          non_compete_agreement, confidentiality_agreement, status, resignation_date,
+          resignation_reason, remarks1, remarks2, remarks3
+        FROM employee_info
+        ${whereClause}
+        ${buildOrderClause(sortField, sortOrder)}
+        LIMIT ${limit} OFFSET ${offset}
+      `;
+
+      console.log('执行在职离职信息查询SQL:', dataSql);
+      console.log('执行在职离职信息查询参数:', params);
+      const [rows] = await connection.execute(dataSql, params);
+
+      // 安全的日期格式化函数
+      const safeFormatDate = (date) => {
+        if (!date) return null;
+        if (date instanceof Date) {
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        }
+        if (typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          return date;
+        }
+        return date;
+      };
+
+      // 转换数据格式
+      const transformedRows = rows.map(row => ({
+        ...row,
+        birth_date: safeFormatDate(row.birth_date),
+        entry_date: safeFormatDate(row.entry_date),
+        actual_regularization_date: safeFormatDate(row.actual_regularization_date),
+        contract_end_date: safeFormatDate(row.contract_end_date),
+        graduation_date: safeFormatDate(row.graduation_date),
+        resignation_date: safeFormatDate(row.resignation_date)
+      }));
+
+      res.json({
+        data: transformedRows,
+        total,
+        page: parseInt(page),
+        pageSize: parseInt(pageSize),
+        totalPages: Math.ceil(total / pageSize)
+      });
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('获取在职离职信息失败:', error);
+    res.status(500).json({ error: '获取在职离职信息失败' });
+  }
+});
+
+/**
+ * 导出在职离职信息
+ */
+router.get('/status-info/export', async (req, res) => {
+  try {
+    const { region, department, name, position, status } = req.query;
+    console.log('收到在职离职信息导出请求:', { region, department, name, position, status });
+
+    const pool = req.pool;
+    const connection = await pool.getConnection();
+
+    try {
+      // 构建WHERE条件
+      let whereConditions = [];
+      let params = [];
+
+      if (region) {
+        whereConditions.push('region LIKE ?');
+        params.push(`%${region}%`);
+      }
+
+      if (department) {
+        whereConditions.push('department LIKE ?');
+        params.push(`%${department}%`);
+      }
+
+      if (name) {
+        whereConditions.push('name LIKE ?');
+        params.push(`%${name}%`);
+      }
+
+      if (position) {
+        whereConditions.push('position LIKE ?');
+        params.push(`%${position}%`);
+      }
+
+      if (status) {
+        whereConditions.push('status = ?');
+        params.push(status);
+      }
+
+      const whereClause = whereConditions.length > 0 ?
+        `WHERE ${whereConditions.join(' AND ')}` : '';
+
+      // 查询employee_info表的所有字段
+      const dataSql = `
+        SELECT *
+        FROM employee_info
+        ${whereClause}
+        ORDER BY entry_date DESC
+      `;
+
+      console.log('导出在职离职信息SQL:', dataSql);
+      console.log('导出在职离职信息参数:', params);
+      const [rows] = await connection.execute(dataSql, params);
+
+      // 直接返回employee_info表的所有数据，稳健格式化日期字段
+      const safeFormatDate = (val) => {
+        if (!val) return '';
+        try {
+          const d = new Date(val);
+          if (isNaN(d.getTime())) return '';
+          // 使用本地时间格式化，避免时区转换
+          const year = d.getFullYear();
+          const month = String(d.getMonth() + 1).padStart(2, '0');
+          const day = String(d.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        } catch (e) {
+          return '';
+        }
+      };
+
+      const exportData = rows.map(row => ({
+        序列: row.sequence_number || '',
+        区域: row.region || '',
+        部门: row.department || '',
+        岗位: row.position || '',
+        名字: row.name || '',
+        性别: row.gender || '',
+        民族: row.ethnicity || '',
+        政治面貌: row.political_status || '',
+        员工性质: row.employee_type || '',
+        险种: row.insurance_type || '',
+        出生日期: safeFormatDate(row.birth_date),
+        生日: row.birthday || '',
+        入职时间: safeFormatDate(row.entry_date),
+        实际转正日期: safeFormatDate(row.actual_regularization_date),
+        备注: row.remarks || '',
+        合同终止日期: safeFormatDate(row.contract_end_date),
+        '工龄（月）': (row.work_age_months ?? '').toString(),
+        身份证号: row.id_card_number || '',
+        身份证地址: row.id_card_address || '',
+        年龄: (row.age ?? '').toString(),
+        籍贯: row.hometown || '',
+        毕业院校: row.graduation_school || '',
+        专业: row.major || '',
+        学历: row.education || '',
+        教育方式: row.education_method || '',
+        毕业日期: safeFormatDate(row.graduation_date),
+        面试官姓名: row.interviewer_name || '',
+        婚姻状况: row.marital_status || '',
+        现居住地: row.current_address || '',
+        本人联系方式: row.personal_contact || '',
+        紧急联系人姓名: row.emergency_contact_name || '',
+        紧急联系人电话: row.emergency_contact_phone || '',
+        银行卡号: row.bank_card_number || '',
+        详细支行信息: row.bank_branch_info || '',
+        '劳动关系隶属(*)': row.labor_relation_affiliation || '',
+        '社保隶属(*)': row.social_insurance_affiliation || '',
+        竞业协议: row.non_compete_agreement || '',
+        保密协议: row.confidentiality_agreement || '',
+        离职时间: safeFormatDate(row.resignation_date),
+        状态: row.status || '',
+        离职原因: row.resignation_reason || '',
+        备注1: row.remarks1 || '',
+        备注2: row.remarks2 || '',
+        备注3: row.remarks3 || ''
+      }));
+
+      res.json({
+        success: true,
+        data: exportData,
+        total: exportData.length
+      });
+
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('导出在职离职信息失败:', error);
+    res.status(500).json({ error: '导出在职离职信息失败', message: error.message });
+  }
+});
+
+/**
+ * 导入在职离职信息
+ */
+router.post('/status-info/import', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: '请选择要上传的Excel文件' });
+    }
+
+    console.log('收到在职离职信息Excel导入请求，文件大小:', req.file.size);
+
+    // 解析Excel文件
+    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+    console.log('Excel解析完成，共', jsonData.length, '行数据');
+    if (jsonData.length > 0) {
+      console.log('Excel数据示例（第一行）:', jsonData[0]);
+      console.log('Excel表头字段:', Object.keys(jsonData[0]));
+    }
+
+    if (jsonData.length === 0) {
+      return res.status(400).json({ success: false, error: 'Excel文件中没有数据' });
+    }
+
+    const pool = req.pool;
+    const connection = await pool.getConnection();
+
+    try {
+      await connection.beginTransaction();
+
+      let successCount = 0;
+      let errorCount = 0;
+      const errors = [];
+
+      for (let i = 0; i < jsonData.length; i++) {
+        const row = jsonData[i];
+
+        try {
+          // 验证必填字段
+          const name = row['姓名'] || row['名字'] || row['name'];
+          if (!name) {
+            errors.push(`第${i + 2}行：缺少必填字段（姓名）`);
+            errorCount++;
+            continue;
+          }
+
+          // 直接插入employee_info表
+          const insertSql = `
+            INSERT INTO employee_info (
+              sequence_number, region, department, position, name, gender, ethnicity,
+              political_status, employee_type, insurance_type, birth_date, birthday,
+              entry_date, actual_regularization_date, remarks, contract_end_date,
+              work_age_months, id_card_number, id_card_address, age, hometown,
+              graduation_school, major, education, education_method, graduation_date,
+              interviewer_name, marital_status, current_address, personal_contact,
+              emergency_contact_name, emergency_contact_phone, bank_card_number,
+              bank_branch_info, labor_relation_affiliation, social_insurance_affiliation,
+              non_compete_agreement, confidentiality_agreement, status, resignation_date,
+              resignation_reason, remarks1, remarks2, remarks3
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `;
+
+          // 辅助函数：解析日期
+          const parseExcelDate = (dateValue) => {
+            if (!dateValue) return null;
+            try {
+              let date;
+              if (typeof dateValue === 'number') {
+                date = new Date((dateValue - 25569) * 86400 * 1000);
+              } else {
+                date = new Date(dateValue);
+              }
+
+              if (isNaN(date.getTime())) return null;
+
+              const year = date.getFullYear();
+              const month = String(date.getMonth() + 1).padStart(2, '0');
+              const day = String(date.getDate()).padStart(2, '0');
+              return `${year}-${month}-${day}`;
+            } catch (e) {
+              return null;
+            }
+          };
+
+          // 计算年龄
+          const calcAge = (birthDate) => {
+            if (!birthDate) return null;
+            try {
+              const birth = new Date(birthDate);
+              const today = new Date();
+              let age = today.getFullYear() - birth.getFullYear();
+              const monthDiff = today.getMonth() - birth.getMonth();
+              if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+                age--;
+              }
+              return age;
+            } catch (e) {
+              return null;
+            }
+          };
+
+          // 计算工龄月数
+          const calcWorkMonths = (entryDate) => {
+            if (!entryDate) return null;
+            try {
+              const entry = new Date(entryDate);
+              const today = new Date();
+              const months = (today.getFullYear() - entry.getFullYear()) * 12 + (today.getMonth() - entry.getMonth());
+              return Math.max(0, months);
+            } catch (e) {
+              return null;
+            }
+          };
+
+          const entryDate = parseExcelDate(row['入职时间'] || row['入职日期']);
+          const birthDate = parseExcelDate(row['出生日期'] || row['生日']);
+
+          await connection.execute(insertSql, [
+            row['序列'] || row['序号'] || null,
+            row['区域'] || null,
+            row['部门'] || null,
+            row['岗位'] || row['职位'] || null,
+            name,
+            row['性别'] || null,
+            row['民族'] || null,
+            row['政治面貌'] || null,
+            row['员工性质'] || null,
+            row['险种'] || null,
+            birthDate,
+            parseExcelDate(row['生日']),
+            entryDate,
+            parseExcelDate(row['实际转正日期']),
+            row['备注'] || null,
+            parseExcelDate(row['合同终止日期']),
+            calcWorkMonths(entryDate),
+            row['身份证号'] || null,
+            row['身份证地址'] || null,
+            calcAge(birthDate),
+            row['籍贯'] || row['家乡'] || null,
+            row['毕业院校'] || null,
+            row['专业'] || null,
+            row['学历'] || null,
+            row['教育方式'] || null,
+            parseExcelDate(row['毕业日期']),
+            row['面试官姓名'] || null,
+            row['婚姻状况'] || null,
+            row['现居住地'] || null,
+            row['本人联系方式'] || null,
+            row['紧急联系人姓名'] || null,
+            row['紧急联系人电话'] || null,
+            row['银行卡号'] || null,
+            row['详细支行信息'] || null,
+            row['劳动关系隶属(*)'] || row['劳动关系归属'] || null,
+            row['社保隶属(*)'] || row['社保归属'] || null,
+            row['竞业协议'] || null,
+            row['保密协议'] || null,
+            row['状态'] || '在职',
+            parseExcelDate(row['离职时间']),
+            row['离职原因'] || null,
+            row['备注1'] || null,
+            row['备注2'] || null,
+            row['备注3'] || null
+          ]);
+
+          successCount++;
+
+        } catch (error) {
+          console.error(`处理第${i + 2}行数据时出错:`, error);
+          errors.push(`第${i + 2}行：${error.message}`);
+          errorCount++;
+        }
+      }
+
+      await connection.commit();
+
+      res.json({
+        success: true,
+        message: `导入完成！成功：${successCount}条，失败：${errorCount}条`,
+        successCount,
+        errorCount,
+        errors: errors.slice(0, 10)
+      });
+
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+
+  } catch (error) {
+    console.error('Excel导入失败:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Excel导入失败',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * 删除单个员工信息
+ */
+router.delete('/status-info/:id', async (req, res) => {
+  try {
+    const employeeId = req.params.id;
+    console.log('收到删除员工信息请求:', employeeId);
+
+    const pool = req.pool;
+    const connection = await pool.getConnection();
+
+    try {
+      const deleteSql = `DELETE FROM employee_info WHERE id = ?`;
+      const [result] = await connection.execute(deleteSql, [employeeId]);
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ error: '员工信息不存在' });
+      }
+
+      res.json({
+        success: true,
+        message: '员工信息删除成功'
+      });
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('删除员工信息失败:', error);
+    res.status(500).json({ error: '删除员工信息失败' });
+  }
+});
+
+/**
+ * 删除所有在职离职信息
+ */
+router.delete('/status-info/all', async (req, res) => {
+  try {
+    console.log('收到删除所有在职离职信息请求');
+
+    const pool = req.pool;
+    const connection = await pool.getConnection();
+
+    try {
+      const deleteSql = `DELETE FROM employee_info`;
+      const [result] = await connection.execute(deleteSql);
+
+      res.json({
+        success: true,
+        message: `已删除所有员工信息，共${result.affectedRows}条记录`
+      });
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('删除所有在职离职信息失败:', error);
+    res.status(500).json({ error: '删除所有在职离职信息失败' });
+  }
+});
+
 module.exports = router;
