@@ -286,7 +286,6 @@
             </div>
           </div>
         </div>
-
         <!-- 第三行：各岗位离职人数 -->
         <div class="turnover-bottom-row">
           <div class="turnover-card turnover-position-bar">
