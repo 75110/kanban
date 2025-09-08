@@ -20,11 +20,23 @@
             导入数据
           </el-button>
         </el-upload>
+        <el-button @click="handleDownloadTemplate">
+          <el-icon>
+            <Download />
+          </el-icon>
+          下载模板
+        </el-button>
         <el-button @click="handleExport">
           <el-icon>
             <Download />
           </el-icon>
           导出数据
+        </el-button>
+        <el-button type="danger" @click="handleDeleteAll">
+          <el-icon>
+            <Delete />
+          </el-icon>
+          清空数据
         </el-button>
       </div>
     </div>
@@ -62,6 +74,13 @@
             </el-icon>
             重置
           </el-button>
+          <!-- 列显示设置 -->
+          <ColumnSelector
+            :columns="tableColumns"
+            page-key="employee-roster"
+            :default-visible-columns="defaultVisibleColumns"
+            @update:visible-columns="handleVisibleColumnsChange"
+          />
         </div>
       </div>
     </div>
@@ -71,24 +90,17 @@
       <el-table v-loading="loading" :data="tableData" stripe border style="width: 100%"
         :default-sort="{ prop: 'entry_date', order: 'descending' }"
         @sort-change="handleSortChange">
-        <el-table-column prop="sequence_number" label="序列" width="80" fixed="left" sortable="custom" />
-        <el-table-column prop="name" label="姓名" width="100" fixed="left" sortable="custom" />
-        <el-table-column prop="department" label="部门" width="120" sortable="custom" />
-        <el-table-column prop="position" label="岗位" width="120" sortable="custom" />
-        <el-table-column prop="gender" label="性别" width="80" sortable="custom" />
-        <el-table-column prop="age" label="年龄" width="80" sortable="custom" />
-        <el-table-column prop="education" label="学历" width="100" sortable="custom" />
-        <el-table-column prop="work_age_months" label="工龄(月)" width="100" sortable="custom" />
-        <el-table-column prop="entry_date" label="入职时间" width="120" sortable="custom" />
-        <el-table-column prop="organization_region" label="组织区域" width="100" />
-        <el-table-column prop="region" label="区域" width="100" sortable="custom" />
-        <el-table-column prop="employee_type" label="员工性质" width="100" sortable="custom" />
-        <el-table-column prop="labor_relation_affiliation" label="劳动关系隶属" width="140" sortable="custom" />
-        <el-table-column prop="social_insurance_affiliation" label="社保隶属" width="120" sortable="custom" />
-        <el-table-column prop="marital_status" label="婚姻状况" width="100" sortable="custom" />
-        <el-table-column prop="personal_contact" label="联系方式" width="120" sortable="custom" />
-        <el-table-column label="操作" width="150" fixed="right">
-          <template #default="{ row }">
+        <el-table-column 
+          v-for="column in visibleTableColumns" 
+          :key="column.prop"
+          :prop="column.prop" 
+          :label="column.label" 
+          :width="column.width"
+          :fixed="column.fixed"
+          :sortable="column.sortable"
+          :show-overflow-tooltip="column.showOverflowTooltip"
+        >
+          <template v-if="column.prop === 'operation'" #default="{ row }">
             <el-button type="primary" size="small" @click="handleEdit(row)">
               编辑
             </el-button>
@@ -117,13 +129,14 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Download, Upload, User, Search, Refresh } from '@element-plus/icons-vue'
+import { Plus, Download, Upload, User, Search, Refresh, Delete } from '@element-plus/icons-vue'
 import { dashboardApi, employeeApi } from '../api'
 import { calculateAge, calculateWorkAge } from '../utils'
 import EmployeeEditDialog from '@/components/EmployeeEditDialog.vue'
 import AddEmployeeDialog from '@/components/AddEmployeeDialog.vue'
+import ColumnSelector from '@/components/ColumnSelector.vue'
 
 // 搜索表单
 const searchForm = reactive({
@@ -156,6 +169,71 @@ const sortInfo = reactive({
   sortField: 'entry_date',
   sortOrder: 'desc'
 })
+
+// 表格列配置 - 包含employee_roster表的所有40个列
+const tableColumns = ref([
+  { prop: 'sequence_number', label: '序列', width: 80, fixed: 'left', sortable: 'custom' },
+  { prop: 'region', label: '区域', width: 100, sortable: 'custom' },
+  { prop: 'department', label: '部门', width: 120, sortable: 'custom' },
+  { prop: 'position', label: '岗位', width: 120, sortable: 'custom' },
+  { prop: 'name', label: '姓名', width: 100, fixed: 'left', sortable: 'custom' },
+  { prop: 'gender', label: '性别', width: 80, sortable: 'custom' },
+  { prop: 'ethnicity', label: '民族', width: 80, sortable: 'custom' },
+  { prop: 'political_status', label: '政治面貌', width: 100, sortable: 'custom' },
+  { prop: 'employee_type', label: '员工性质', width: 100, sortable: 'custom' },
+  { prop: 'insurance_type', label: '险种', width: 100, sortable: 'custom' },
+  { prop: 'birth_date', label: '出生日期', width: 120, sortable: 'custom' },
+  { prop: 'birthday', label: '生日', width: 120, sortable: 'custom' },
+  { prop: 'entry_date', label: '入职时间', width: 120, sortable: 'custom' },
+  { prop: 'actual_regularization_date', label: '实际转正日期', width: 140, sortable: 'custom' },
+  { prop: 'remarks', label: '备注', width: 200, showOverflowTooltip: true },
+  { prop: 'contract_end_date', label: '合同终止日期', width: 140, sortable: 'custom' },
+  { prop: 'work_age_months', label: '工龄(月)', width: 100, sortable: 'custom' },
+  { prop: 'id_card_number', label: '身份证号', width: 180, sortable: 'custom' },
+  { prop: 'id_card_address', label: '身份证地址', width: 200, showOverflowTooltip: true },
+  { prop: 'age', label: '年龄', width: 80, sortable: 'custom' },
+  { prop: 'hometown', label: '籍贯', width: 100, sortable: 'custom' },
+  { prop: 'graduation_school', label: '毕业院校', width: 200, sortable: 'custom' },
+  { prop: 'major', label: '专业', width: 100, sortable: 'custom' },
+  { prop: 'education', label: '学历', width: 100, sortable: 'custom' },
+  { prop: 'education_method', label: '教育方式', width: 100, sortable: 'custom' },
+  { prop: 'graduation_date', label: '毕业日期', width: 120, sortable: 'custom' },
+  { prop: 'interviewer_name', label: '面试官姓名', width: 120, sortable: 'custom' },
+  { prop: 'marital_status', label: '婚姻状况', width: 100, sortable: 'custom' },
+  { prop: 'current_address', label: '现居住地', width: 200, showOverflowTooltip: true },
+  { prop: 'personal_contact', label: '本人联系方式', width: 140, sortable: 'custom' },
+  { prop: 'emergency_contact_name', label: '紧急联系人姓名', width: 140, sortable: 'custom' },
+  { prop: 'emergency_contact_phone', label: '紧急联系人电话', width: 140, sortable: 'custom' },
+  { prop: 'bank_card_number', label: '银行卡号', width: 180, sortable: 'custom' },
+  { prop: 'bank_branch_info', label: '详细支行信息', width: 200, showOverflowTooltip: true },
+  { prop: 'labor_relation_affiliation', label: '劳动关系隶属', width: 200, minWidth: 200, sortable: 'custom' },
+  { prop: 'social_insurance_affiliation', label: '社保隶属', width: 160, minWidth: 160, sortable: 'custom' },
+  { prop: 'non_compete_agreement', label: '竞业协议', width: 120, sortable: 'custom' },
+  { prop: 'confidentiality_agreement', label: '保密协议', width: 120, sortable: 'custom' },
+  { prop: 'remarks1', label: '备注1', width: 200, showOverflowTooltip: true },
+  { prop: 'remarks2', label: '备注2', width: 200, showOverflowTooltip: true },
+  { prop: 'operation', label: '操作', width: 150, fixed: 'right' }
+])
+
+// 默认可见的列 - 显示最常用的列
+const defaultVisibleColumns = ref([
+  'sequence_number', 'name', 'department', 'position', 'gender', 'age', 
+  'education', 'work_age_months', 'entry_date', 'personal_contact', 
+  'labor_relation_affiliation', 'social_insurance_affiliation', 'operation'
+])
+
+// 当前可见的列
+const visibleColumns = ref([...defaultVisibleColumns.value])
+
+// 计算可见的表格列
+const visibleTableColumns = computed(() => {
+  return tableColumns.value.filter(column => visibleColumns.value.includes(column.prop))
+})
+
+// 处理可见列变化
+const handleVisibleColumnsChange = (newVisibleColumns) => {
+  visibleColumns.value = newVisibleColumns
+}
 
 // 获取员工数据
 const fetchEmployeeData = async () => {
@@ -247,6 +325,40 @@ const handleAddSuccess = () => {
   fetchEmployeeData() // 刷新数据
 }
 
+// 下载导入模板
+const handleDownloadTemplate = () => {
+  try {
+    // 定义模板列名
+    const headers = [
+      '序列', '区域', '部门', '岗位', '名字', '性别', '民族', '政治面貌', '员工性质', '险种',
+      '出生日期', '生日', '入职时间', '实际转正日期', '备注', '合同终止日期', '工龄（月）',
+      '身份证号', '身份证地址', '年龄', '籍贯', '毕业院校', '专业', '学历', '教育方式',
+      '毕业日期', '面试官姓名', '婚姻状况', '现居住地', '本人联系方式', '紧急联系人姓名',
+      '紧急联系人电话', '银行卡号', '详细支行信息', '劳动关系隶属(*)', '社保隶属(*)',
+      '竞业协议', '保密协议', '备注1', '备注2'
+    ]
+
+    // 创建CSV内容（只有表头）
+    const csvContent = headers.join(',')
+
+    // 创建下载链接
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `员工花名册导入模板_${new Date().toISOString().split('T')[0]}.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+
+    ElMessage.success('模板下载成功')
+  } catch (error) {
+    console.error('模板下载失败:', error)
+    ElMessage.error('模板下载失败')
+  }
+}
+
 // 导出数据
 const handleExport = async () => {
   try {
@@ -254,11 +366,14 @@ const handleExport = async () => {
       ...searchForm
     }
 
+    console.log('花名册导出参数:', params)
     const response = await employeeApi.exportRoster(params)
+    console.log('花名册导出响应:', response)
 
     if (response.success) {
       // 创建Excel文件并下载
       const data = response.data
+      console.log('花名册导出数据:', data)
       const headers = [
         '序列', '区域', '部门', '岗位', '名字', '性别', '民族', '政治面貌', '员工性质', '险种',
         '出生日期', '生日', '入职时间', '实际转正日期', '备注', '合同终止日期', '工龄（月）',
@@ -268,56 +383,17 @@ const handleExport = async () => {
         '竞业协议', '保密协议', '备注1', '备注2'
       ]
 
-      // 字段映射：中文表头 -> 英文字段名
-      const fieldMapping = {
-        '序列': 'sequence_number',
-        '区域': 'region',
-        '部门': 'department',
-        '岗位': 'position',
-        '名字': 'name',
-        '性别': 'gender',
-        '民族': 'ethnicity',
-        '政治面貌': 'political_status',
-        '员工性质': 'employee_type',
-        '险种': 'insurance_type',
-        '出生日期': 'birth_date',
-        '生日': 'birthday',
-        '入职时间': 'entry_date',
-        '实际转正日期': 'actual_regularization_date',
-        '备注': 'remarks',
-        '合同终止日期': 'contract_end_date',
-        '工龄（月）': 'work_age_months',
-        '身份证号': 'id_card_number',
-        '身份证地址': 'id_card_address',
-        '年龄': 'age',
-        '籍贯': 'hometown',
-        '毕业院校': 'graduation_school',
-        '专业': 'major',
-        '学历': 'education',
-        '教育方式': 'education_method',
-        '毕业日期': 'graduation_date',
-        '面试官姓名': 'interviewer_name',
-        '婚姻状况': 'marital_status',
-        '现居住地': 'current_address',
-        '本人联系方式': 'personal_contact',
-        '紧急联系人姓名': 'emergency_contact_name',
-        '紧急联系人电话': 'emergency_contact_phone',
-        '银行卡号': 'bank_card_number',
-        '详细支行信息': 'bank_branch_info',
-        '劳动关系隶属(*)': 'labor_relation_affiliation',
-        '社保隶属(*)': 'social_insurance_affiliation',
-        '竞业协议': 'non_compete_agreement',
-        '保密协议': 'confidentiality_agreement',
-        '备注1': 'remarks1',
-        '备注2': 'remarks2'
-      }
-
       // 转换数据为CSV格式
       const csvContent = [
         headers.join(','),
         ...data.map(row => headers.map(header => {
-          const fieldName = fieldMapping[header]
-          return fieldName ? (row[fieldName] || '') : ''
+          // 后端返回的数据已经是中文键，直接使用
+          let value = row[header] || ''
+          // 如果值中包含逗号，用引号包裹
+          if (String(value).includes(',')) {
+            value = `"${value}"`
+          }
+          return value
         }).join(','))
       ].join('\n')
 
@@ -414,6 +490,36 @@ const handleDelete = async (row) => {
     )
     ElMessage.success('删除成功')
     fetchEmployeeData()
+  } catch {
+    // 用户取消删除
+  }
+}
+
+// 删除全部数据
+const handleDeleteAll = async () => {
+  try {
+    await ElMessageBox.confirm(
+      '仅测试！确定要清空所有员工花名册数据吗？此操作不可恢复！',
+      '确认清空数据',
+      {
+        confirmButtonText: '确定清空',
+        cancelButtonText: '取消',
+        type: 'error',
+        dangerouslyUseHTMLString: true
+      }
+    )
+    
+    loading.value = true
+    try {
+      await employeeApi.deleteAllRoster()
+      ElMessage.success('数据清空成功')
+      fetchEmployeeData() // 刷新数据
+    } catch (error) {
+      console.error('清空数据失败:', error)
+      ElMessage.error('清空数据失败')
+    } finally {
+      loading.value = false
+    }
   } catch {
     // 用户取消删除
   }

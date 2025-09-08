@@ -10,16 +10,10 @@ function transformWorkAge(months) {
   const monthsNum = parseInt(months);
   
   if (monthsNum < 12) return '1年以下';
-  if (monthsNum < 24) return '1-2年';
-  if (monthsNum < 36) return '2-3年';
-  if (monthsNum < 48) return '3-4年';
-  if (monthsNum < 60) return '4-5年';
-  if (monthsNum < 72) return '5-6年';
-  if (monthsNum < 84) return '6-7年';
-  if (monthsNum < 96) return '7-8年';
-  if (monthsNum < 108) return '8-9年';
-  if (monthsNum < 120) return '9-10年';
-  return '10年以上';
+  if (monthsNum < 36) return '1-3年';
+  if (monthsNum < 72) return '3-6年';
+  if (monthsNum < 144) return '6-12年';
+  return '12年以上';
 }
 
 /**
@@ -75,7 +69,7 @@ function transformRegion(area) {
   const areaStr = area.toString();
   
   if (areaStr === '总部') return '华东';
-  if (areaStr === '合肥') return '华北';
+  if (areaStr === '合肥') return '华东';
   if (['杭州', '上海', '宁波', '义乌'].includes(areaStr)) return '华东';
   return '华南';
 }

@@ -154,6 +154,31 @@ export const employeeApi = {
     return api.post("/employee/transfer", params);
   },
 
+  // 获取员工获奖记录
+  getAwards(params) {
+    return api.get("/employee/awards", { params });
+  },
+
+  // 获取获奖记录筛选选项
+  getAwardsFilterOptions() {
+    return api.get("/employee/awards/filter-options");
+  },
+
+  // 导出获奖记录
+  exportAwards(params) {
+    return api.get("/employee/awards/export", { params });
+  },
+
+  // 更新获奖记录
+  updateAward(id, params) {
+    return api.put(`/employee/awards/${id}`, params);
+  },
+
+  // 导入获奖记录
+  importAwards(data) {
+    return api.post('/employee/awards/import', data);
+  },
+
   // 删除离职记录
   deleteResignation(id) {
     return api.delete(`/employee/resignation/${id}`);
@@ -182,6 +207,46 @@ export const employeeApi = {
   // 导出人员异动数据
   exportChanges(params) {
     return api.get("/employee/changes/export", { params });
+  },
+
+  // 获取在职离职信息
+  getStatusInfo(params) {
+    return api.get("/employee/status-info", { params });
+  },
+
+  // 导出在职离职信息
+  exportStatusInfo(params) {
+    return api.get("/employee/status-info/export", { params });
+  },
+
+  // 导入在职离职信息
+  importStatusInfo(data) {
+    return api.post('/employee/status-info/import', data);
+  },
+
+  // 删除所有在职离职信息
+  deleteAllStatusInfo() {
+    return api.delete('/employee/status-info/all');
+  },
+
+  // 删除所有员工花名册数据
+  deleteAllRoster() {
+    return api.delete('/employee/roster/all');
+  },
+
+  // 删除所有离职监控数据
+  deleteAllResignation() {
+    return api.delete('/employee/resignation/all');
+  },
+
+  // 删除所有人员异动数据
+  deleteAllChanges() {
+    return api.delete('/employee/changes/all');
+  },
+
+  // 删除所有员工获奖数据
+  deleteAllAwards() {
+    return api.delete('/employee/awards/all');
   },
 };
 

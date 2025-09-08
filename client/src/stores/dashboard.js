@@ -9,8 +9,10 @@ export const useDashboardStore = defineStore("dashboard", {
       organizationRegion: "",
       region: "",
       department: "",
+      hometown: "", // 户籍地筛选
       year: "", // 默认不选择年份，显示所有数据
       month: "",
+      dateRange: [], // 日期范围 [开始日期, 结束日期]
     },
 
     // 图表联动筛选
@@ -143,7 +145,7 @@ export const useDashboardStore = defineStore("dashboard", {
         organizationRegion: "",
         region: "",
         department: "",
-        year: new Date().getFullYear(),
+        year: "",
         month: "",
       };
     },
@@ -154,12 +156,26 @@ export const useDashboardStore = defineStore("dashboard", {
       try {
         // 使用新的filter-options API获取所有筛选选项
         const filterOptions = await dashboardApi.getFilterOptions();
+        console.log('获取到的筛选选项:', filterOptions);
         this.filterOptions = {
-          organizationRegions: filterOptions.organizationRegions || [],
-          regions: filterOptions.regions || [],
-          departments: filterOptions.departments || [],
-          years: filterOptions.years || []
+          organizationRegions: (filterOptions.organizationRegions || []).map(item => ({
+            value: item.region || item.id,
+            label: item.region || item.id
+          })),
+          regions: (filterOptions.regions || []).map(item => ({
+            value: item.region || item.id,
+            label: item.region || item.id
+          })),
+          departments: (filterOptions.departments || []).map(item => ({
+            value: item.department || item.id,
+            label: item.department || item.id
+          })),
+          years: (filterOptions.years || []).map(year => ({
+            value: year.toString(),
+            label: year.toString()
+          }))
         };
+        console.log('设置后的filterOptions:', this.filterOptions);
       } catch (error) {
         console.error("获取筛选选项失败:", error);
         // 如果新API失败，尝试使用旧的字典API作为备用
@@ -168,8 +184,14 @@ export const useDashboardStore = defineStore("dashboard", {
           const regionDict = await getRegionDict();
           this.filterOptions = {
             organizationRegions: [],
-            regions: regionDict,
-            departments: departmentDict,
+            regions: (regionDict || []).map(item => ({
+              value: item.region || item.id,
+              label: item.region || item.id
+            })),
+            departments: (departmentDict || []).map(item => ({
+              value: item.department || item.id,
+              label: item.department || item.id
+            })),
             years: [] // 年份数据无法从字典API获取
           };
         } catch (fallbackError) {
@@ -182,9 +204,12 @@ export const useDashboardStore = defineStore("dashboard", {
 
     // 获取统计数据
     async fetchStats() {
+      console.log('=== fetchStats 开始调用 ===');
+      console.log('当前筛选条件:', this.currentFilters);
       this.loading.stats = true;
       try {
         const data = await dashboardApi.getStats(this.currentFilters);
+        console.log('=== fetchStats API返回数据 ===', data);
         // 只有成功获取数据后才更新，避免闪烁
         if (data) {
           // 确保增长数据结构完整
@@ -195,9 +220,12 @@ export const useDashboardStore = defineStore("dashboard", {
             };
           }
           this.stats = data;
+          console.log('=== fetchStats 数据设置成功 ===', this.stats);
+        } else {
+          console.log('=== fetchStats 返回数据为空 ===');
         }
       } catch (error) {
-        console.error("获取统计数据失败:", error);
+        console.error("=== fetchStats 获取统计数据失败 ===", error);
         // API失败时，确保stats有基本结构，避免undefined错误
         if (!this.stats.growth) {
           this.stats.growth = {
@@ -207,6 +235,7 @@ export const useDashboardStore = defineStore("dashboard", {
         }
       } finally {
         this.loading.stats = false;
+        console.log('=== fetchStats 调用完成 ===');
       }
     },
 
@@ -294,6 +323,8 @@ export const useDashboardStore = defineStore("dashboard", {
         education: "",
         department: "",
       };
+      // 同时清除地图相关的筛选条件
+      this.filters.hometown = "";
       this.refreshAll();
     },
 
@@ -328,6 +359,11 @@ export const useDashboardStore = defineStore("dashboard", {
 
     // 页面切换时的筛选状态管理
     handlePageSwitch(fromPage, toPage) {
+      console.log(`页面切换: ${fromPage} -> ${toPage}`)
+      
+      // 清除所有主要筛选条件
+      this.resetFilters()
+      
       // 清除图表筛选
       this.clearChartFilters()
 
@@ -336,7 +372,10 @@ export const useDashboardStore = defineStore("dashboard", {
         this.clearTurnoverChartFilters()
       }
 
-      // 可以根据需要添加更多页面切换逻辑
+      // 清除地图相关筛选条件
+      this.filters.hometown = ""
+      
+      console.log('页面切换完成，所有筛选条件已清除')
     },
 
     // 清除所有筛选（包括顶部筛选器和图表筛选）

@@ -5,6 +5,60 @@
 
 
 
+CREATE TABLE `employee_info` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `sequence_number` varchar(50) DEFAULT NULL COMMENT '序列',
+  `region` varchar(50) DEFAULT NULL COMMENT '区域',
+  `department` varchar(100) DEFAULT NULL COMMENT '部门',
+  `position` varchar(100) DEFAULT NULL COMMENT '岗位',
+  `name` varchar(50) DEFAULT NULL COMMENT '名字',
+  `gender` varchar(10) DEFAULT NULL COMMENT '性别',
+  `ethnicity` varchar(50) DEFAULT NULL COMMENT '民族',
+  `political_status` varchar(50) DEFAULT NULL COMMENT '政治面貌',
+  `employee_type` varchar(50) DEFAULT NULL COMMENT '员工性质',
+  `insurance_type` varchar(50) DEFAULT NULL COMMENT '险种',
+  `birth_date` date DEFAULT NULL COMMENT '出生日期',
+  `birthday` varchar(10) DEFAULT NULL COMMENT '生日',
+  `entry_date` date DEFAULT NULL COMMENT '入职时间',
+  `actual_regularization_date` date DEFAULT NULL COMMENT '实际转正日期',
+  `remarks` text COMMENT '备注',
+  `contract_end_date` date DEFAULT NULL COMMENT '合同终止日期',
+  `work_age_months` int DEFAULT NULL COMMENT '工龄（月）',
+  `id_card_number` varchar(20) DEFAULT NULL COMMENT '身份证号',
+  `id_card_address` text COMMENT '身份证地址',
+  `age` int DEFAULT NULL COMMENT '年龄',
+  `hometown` varchar(100) DEFAULT NULL COMMENT '籍贯',
+  `graduation_school` varchar(200) DEFAULT NULL COMMENT '毕业院校',
+  `major` varchar(100) DEFAULT NULL COMMENT '专业',
+  `education` varchar(50) DEFAULT NULL COMMENT '学历',
+  `education_method` varchar(50) DEFAULT NULL COMMENT '教育方式',
+  `graduation_date` date DEFAULT NULL COMMENT '毕业日期',
+  `interviewer_name` varchar(50) DEFAULT NULL COMMENT '面试官姓名',
+  `marital_status` varchar(20) DEFAULT NULL COMMENT '婚姻状况',
+  `current_address` text COMMENT '现居住地',
+  `personal_contact` varchar(50) DEFAULT NULL COMMENT '本人联系方式',
+  `emergency_contact_name` varchar(50) DEFAULT NULL COMMENT '紧急联系人姓名',
+  `emergency_contact_phone` varchar(50) DEFAULT NULL COMMENT '紧急联系人电话',
+  `bank_card_number` varchar(50) DEFAULT NULL COMMENT '银行卡号',
+  `bank_branch_info` text COMMENT '详细支行信息',
+  `labor_relation_affiliation` varchar(100) DEFAULT NULL COMMENT '劳动关系隶属(*)',
+  `social_insurance_affiliation` varchar(100) DEFAULT NULL COMMENT '社保隶属(*)',
+  `non_compete_agreement` varchar(10) DEFAULT NULL COMMENT '竞业协议',
+  `confidentiality_agreement` varchar(10) DEFAULT NULL COMMENT '保密协议',
+  `resignation_date` date DEFAULT NULL COMMENT '离职时间',
+  `status` varchar(20) DEFAULT NULL COMMENT '状态',
+  `resignation_reason` text COMMENT '离职原因',
+  `remarks1` text COMMENT '备注1',
+  `remarks2` text COMMENT '备注2',
+  `remarks3` text COMMENT '备注3',
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `Column45` varchar(1) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=381 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='在职离职合并';
+
+
+
 
 CREATE TABLE `employee_roster` (
   `sequence_number` varchar(50) DEFAULT NULL COMMENT '序列',
@@ -54,7 +108,6 @@ CREATE TABLE `employee_roster` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='员工花名册';
 
 
-
 CREATE TABLE `resignation_monitoring` (
   `id` int NOT NULL AUTO_INCREMENT,
   `sequence_number` varchar(50) DEFAULT NULL COMMENT '序列',
@@ -74,7 +127,7 @@ CREATE TABLE `resignation_monitoring` (
   `remarks` text COMMENT '备注',
   `contract_end_date` date DEFAULT NULL COMMENT '合同终止日期',
   `work_age_months` int DEFAULT NULL COMMENT '工龄（月）',
-  `id_card_number` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL COMMENT '身份证号',
+  `id_card_number` text COMMENT '身份证号',
   `id_card_address` text COMMENT '身份证地址',
   `age` int DEFAULT NULL COMMENT '年龄',
   `hometown` varchar(100) DEFAULT NULL COMMENT '籍贯',
@@ -82,14 +135,14 @@ CREATE TABLE `resignation_monitoring` (
   `major` varchar(100) DEFAULT NULL COMMENT '专业',
   `education` varchar(50) DEFAULT NULL COMMENT '学历',
   `education_method` varchar(50) DEFAULT NULL COMMENT '教育方式',
-  `graduation_date` text COMMENT '毕业日期',
+  `graduation_date` date DEFAULT NULL COMMENT '毕业日期',
   `interviewer_name` varchar(50) DEFAULT NULL COMMENT '面试官姓名',
   `marital_status` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL COMMENT '婚姻状况',
   `current_address` text COMMENT '现居住地',
   `personal_contact` varchar(50) DEFAULT NULL COMMENT '本人联系方式',
   `emergency_contact_name` varchar(50) DEFAULT NULL COMMENT '紧急联系人姓名',
   `emergency_contact_phone` varchar(50) DEFAULT NULL COMMENT '紧急联系人电话',
-  `bank_card_number` varchar(50) DEFAULT NULL COMMENT '银行卡号',
+  `bank_card_number` text COMMENT '银行卡号',
   `bank_branch_info` text COMMENT '详细支行信息',
   `labor_relation_affiliation` varchar(100) DEFAULT NULL COMMENT '劳动关系隶属(*)',
   `social_insurance_affiliation` varchar(100) DEFAULT NULL COMMENT '社保隶属(*)',
@@ -106,8 +159,7 @@ CREATE TABLE `resignation_monitoring` (
   KEY `idx_department` (`department`),
   KEY `idx_resignation_date` (`resignation_date`),
   KEY `idx_name` (`name`)
-) ENGINE=InnoDB AUTO_INCREMENT=4380 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='离职监控表';
-
+) ENGINE=InnoDB AUTO_INCREMENT=6867 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='离职监控表';
 
 
 CREATE TABLE `personnel_changes` (
@@ -122,3 +174,33 @@ CREATE TABLE `personnel_changes` (
   KEY `idx_name` (`name`),
   KEY `idx_change_date` (`change_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='人员异动明细表-英文字段';
+
+
+
+CREATE TABLE `employee_awards` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `award_year` year NOT NULL COMMENT '获奖年份',
+  `award_date` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '获奖时间(支持中文格式，如：2024年12月、2024年第一季度等)',
+  `name` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '姓名',
+  `department` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '部门',
+  `entry_date` date DEFAULT NULL COMMENT '入职时间',
+  `award_month` varchar(200) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '获奖月份(支持中文格式，如：1月、第一季度、上半年等)',
+  `award_name` varchar(200) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '奖项',
+  `award_amount` decimal(10,2) DEFAULT '0.00' COMMENT '金额',
+  `remarks` text COLLATE utf8mb4_unicode_ci COMMENT '备注',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `id` (`id`),
+  KEY `idx_award_year` (`award_year`),
+  KEY `idx_award_date` (`award_date`),
+  KEY `idx_name` (`name`),
+  KEY `idx_department` (`department`),
+  KEY `idx_award_month` (`award_month`),
+  KEY `idx_award_name` (`award_name`),
+  KEY `idx_entry_date` (`entry_date`)
+) ENGINE=InnoDB AUTO_INCREMENT=168 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='员工获奖信息表';
+
+
+
+

@@ -34,7 +34,7 @@ router.get("", async (req, res) => {
             const areaStr = area.toString();
 
             if (areaStr === "总部") return "华东";
-            if (areaStr === "合肥") return "华北";
+            if (areaStr === "合肥") return "华东";
             if (["杭州", "上海", "宁波", "义乌"].includes(areaStr))
               return "华东";
             return "华南";

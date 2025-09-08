@@ -8,7 +8,7 @@ const path = require('path');
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3002;
 
 // 中间件
 app.use(cors());
@@ -64,8 +64,10 @@ testDatabaseConnection();
 // 导入路由
 const dashboardRoutes = require('./routes/dashboard');
 const employeeRoutes = require('./routes/employee');
+const employeeProfileRoutes = require('./routes/employee-profile');
 const schemaRoutes = require('./routes/schema');
 const commonRoutes = require('./routes/common');
+const householdMapRoutes = require('./routes/household-map');
 
 // 将数据库连接池传递给路由
 app.use('/api/dashboard', (req, res, next) => {
@@ -78,6 +80,11 @@ app.use('/api/employee', (req, res, next) => {
   next();
 }, employeeRoutes);
 
+app.use('/api/employee-profile', (req, res, next) => {
+  req.pool = pool;
+  next();
+}, employeeProfileRoutes);
+
 app.use('/api/schema', (req, res, next) => {
   req.pool = pool;
   next();
@@ -87,6 +94,11 @@ app.use('/api/common', (req, res, next) => {
   req.pool = pool;
   next();
 }, commonRoutes);
+
+app.use('/api/household-map', (req, res, next) => {
+  req.pool = pool;
+  next();
+}, householdMapRoutes);
 
 // 健康检查
 app.get('/api/health', (req, res) => {

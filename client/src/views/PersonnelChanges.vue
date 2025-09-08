@@ -16,6 +16,12 @@
           </el-icon>
           导出数据
         </el-button>
+        <el-button type="danger" @click="handleDeleteAll">
+          <el-icon>
+            <Delete />
+          </el-icon>
+          清空数据
+        </el-button>
       </div>
     </div>
 
@@ -56,6 +62,13 @@
             </el-icon>
             重置
           </el-button>
+          <!-- 列显示设置 -->
+          <ColumnSelector
+            :columns="tableColumns"
+            page-key="personnel-changes"
+            :default-visible-columns="defaultVisibleColumns"
+            @update:visible-columns="handleVisibleColumnsChange"
+          />
         </div>
       </div>
     </div>
@@ -65,21 +78,22 @@
       <el-table v-loading="loading" :data="tableData" stripe border style="width: 100%"
         :default-sort="{ prop: 'change_date', order: 'descending' }"
         @sort-change="handleSortChange">
-        <el-table-column prop="department" label="部门" width="120" sortable="custom" />
-        <el-table-column prop="name" label="姓名" width="100" fixed="left" sortable="custom" />
-        <el-table-column prop="original_position" label="原岗位" width="150" sortable="custom" />
-        <el-table-column prop="new_position" label="新岗位" width="150" sortable="custom" />
-        <el-table-column prop="change_date" label="异动时间" width="120" sortable="custom" />
-        <el-table-column prop="change_reason" label="异动原因" width="120" sortable="custom">
-          <template #default="{ row }">
+        <el-table-column 
+          v-for="column in visibleTableColumns" 
+          :key="column.prop"
+          :prop="column.prop" 
+          :label="column.label" 
+          :width="column.width"
+          :fixed="column.fixed"
+          :sortable="column.sortable"
+          :show-overflow-tooltip="column.showOverflowTooltip"
+        >
+          <template v-if="column.prop === 'change_reason'" #default="{ row }">
             <el-tag :type="getChangeTypeTag(row.change_reason)" size="small">
               {{ row.change_reason }}
             </el-tag>
           </template>
-        </el-table-column>
-        <el-table-column prop="change_remarks" label="备注" width="200" show-overflow-tooltip />
-        <el-table-column label="操作" width="150" fixed="right">
-          <template #default="{ row }">
+          <template v-else-if="column.prop === 'operation'" #default="{ row }">
             <el-button type="primary" size="small" @click="handleEdit(row)">
               编辑
             </el-button>
@@ -108,12 +122,13 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Download, User, Search, Refresh } from '@element-plus/icons-vue'
+import { Plus, Download, User, Search, Refresh, Delete } from '@element-plus/icons-vue'
 import { employeeApi, dashboardApi } from '../api'
 import AddPersonnelChangeDialog from '@/components/AddPersonnelChangeDialog.vue'
 import EditPersonnelChangeDialog from '@/components/EditPersonnelChangeDialog.vue'
+import ColumnSelector from '@/components/ColumnSelector.vue'
 
 // 搜索表单
 const searchForm = reactive({
@@ -141,6 +156,36 @@ const sortInfo = reactive({
   sortField: 'change_date',
   sortOrder: 'desc'
 })
+
+// 表格列配置 - 包含personnel_changes表的所有7个列
+const tableColumns = ref([
+  { prop: 'department', label: '部门', width: 120, sortable: 'custom' },
+  { prop: 'name', label: '姓名', width: 100, fixed: 'left', sortable: 'custom' },
+  { prop: 'original_position', label: '原岗位', width: 150, sortable: 'custom' },
+  { prop: 'new_position', label: '新岗位', width: 150, sortable: 'custom' },
+  { prop: 'change_date', label: '异动时间', width: 120, sortable: 'custom' },
+  { prop: 'change_reason', label: '异动原因', width: 120, sortable: 'custom' },
+  { prop: 'remarks', label: '备注', width: 200, showOverflowTooltip: true },
+  { prop: 'operation', label: '操作', width: 150, fixed: 'right' }
+])
+
+// 默认可见的列 - 显示所有列（因为只有7个列）
+const defaultVisibleColumns = ref([
+  'department', 'name', 'original_position', 'new_position', 'change_date', 'change_reason', 'operation'
+])
+
+// 当前可见的列
+const visibleColumns = ref([...defaultVisibleColumns.value])
+
+// 计算可见的表格列
+const visibleTableColumns = computed(() => {
+  return tableColumns.value.filter(column => visibleColumns.value.includes(column.prop))
+})
+
+// 处理可见列变化
+const handleVisibleColumnsChange = (newVisibleColumns) => {
+  visibleColumns.value = newVisibleColumns
+}
 
 // 获取异动类型标签样式
 const getChangeTypeTag = (type) => {
@@ -306,6 +351,36 @@ const handleDelete = async (row) => {
     if (error !== 'cancel') {
       ElMessage.error('删除失败')
     }
+  }
+}
+
+// 删除全部数据
+const handleDeleteAll = async () => {
+  try {
+    await ElMessageBox.confirm(
+      '仅测试！确定要清空所有人员异动数据吗？此操作不可恢复！',
+      '确认清空数据',
+      {
+        confirmButtonText: '确定清空',
+        cancelButtonText: '取消',
+        type: 'error',
+        dangerouslyUseHTMLString: true
+      }
+    )
+    
+    loading.value = true
+    try {
+      await employeeApi.deleteAllChanges()
+      ElMessage.success('数据清空成功')
+      fetchChangesData() // 刷新数据
+    } catch (error) {
+      console.error('清空数据失败:', error)
+      ElMessage.error('清空数据失败')
+    } finally {
+      loading.value = false
+    }
+  } catch {
+    // 用户取消删除
   }
 }
 

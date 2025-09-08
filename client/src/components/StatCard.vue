@@ -1,8 +1,10 @@
 <template>
   <div :class="['stat-card', type]">
     <div class="stat-content">
-      <div class="stat-number">{{ formatNumber(value) }}{{ suffix }}</div>
       <div class="stat-label">{{ title }}</div>
+      <div class="stat-number" :class="{ 'animating': isAnimating }">
+        {{ formatNumber(animatedValue) }}{{ suffix }}
+      </div>
       <div v-if="growth !== null" class="stat-growth">
         <el-icon :class="growthClass">
           <component :is="growthIcon" />
@@ -17,7 +19,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch, onMounted } from 'vue'
 import { ArrowUp, ArrowDown, Minus } from '@element-plus/icons-vue'
 
 const props = defineProps({
@@ -46,8 +48,21 @@ const props = defineProps({
   suffix: {
     type: String,
     default: ''
+  },
+  // 新增动画相关props
+  animated: {
+    type: Boolean,
+    default: true
+  },
+  animationDuration: {
+    type: Number,
+    default: 2000 // 动画持续时间（毫秒）
   }
 })
+
+// 动画相关状态
+const animatedValue = ref(0)
+const isAnimating = ref(false)
 
 // 格式化数字
 const formatNumber = (num) => {
@@ -56,6 +71,50 @@ const formatNumber = (num) => {
   }
   return num.toString()
 }
+
+// 数字递增动画函数
+const animateValue = (start, end, duration) => {
+  if (!props.animated) {
+    animatedValue.value = end
+    return
+  }
+
+  isAnimating.value = true
+  const startTime = performance.now()
+  const difference = end - start
+
+  const step = (currentTime) => {
+    const elapsed = currentTime - startTime
+    const progress = Math.min(elapsed / duration, 1)
+    
+    // 使用缓动函数（easeOutCubic）
+    const easeOutCubic = 1 - Math.pow(1 - progress, 3)
+    animatedValue.value = Math.round(start + difference * easeOutCubic)
+    
+    if (progress < 1) {
+      requestAnimationFrame(step)
+    } else {
+      animatedValue.value = end
+      isAnimating.value = false
+    }
+  }
+  
+  requestAnimationFrame(step)
+}
+
+// 监听value变化，触发动画
+watch(() => props.value, (newValue) => {
+  if (newValue !== undefined && newValue !== null) {
+    animateValue(animatedValue.value, newValue, props.animationDuration)
+  }
+}, { immediate: true })
+
+// 组件挂载时开始动画
+onMounted(() => {
+  if (props.value !== undefined && props.value !== null) {
+    animateValue(0, props.value, props.animationDuration)
+  }
+})
 
 // 增长率样式类
 const growthClass = computed(() => {
@@ -75,11 +134,11 @@ const growthIcon = computed(() => {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border-radius: 12px;
-  padding: 24px;
+  padding: 20px;
   position: relative;
   overflow: hidden;
   transition: all 0.3s ease;
-  height: 140px;
+  height: 120px;
   display: flex;
   align-items: center;
 }
@@ -126,29 +185,46 @@ const growthIcon = computed(() => {
   position: relative;
   z-index: 1;
   width: 100%;
-}
-
-.stat-number {
-  font-size: 36px;
-  font-weight: 600;
-  margin-bottom: 8px;
-  line-height: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
 
 .stat-label {
-  font-size: 16px;
-  opacity: 0.9;
-  margin-bottom: 12px;
-  font-weight: 500;
+  font-size: 18px;
+  opacity: 0.95;
+  font-weight: 600;
+  line-height: 1.2;
+  margin: 0;
+  margin-bottom: 8px;
+}
+
+.stat-number {
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1;
+  margin: 0;
+  margin-bottom: 8px;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+/* 动画中的数字样式 */
+.stat-number.animating {
+  transform: scale(1.05);
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
 }
 
 .stat-growth {
-  font-size: 14px;
+  font-size: 12px;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
   font-weight: 500;
   opacity: 0.95;
+  text-align: center;
 }
 
 /* 默认增长率颜色（白色背景卡片） */
@@ -203,11 +279,11 @@ const growthIcon = computed(() => {
   }
   
   .stat-label {
-    font-size: 14px;
+    font-size: 16px;
   }
   
   .stat-growth {
-    font-size: 12px;
+    font-size: 11px;
   }
 }
 </style>
