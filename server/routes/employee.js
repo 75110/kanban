@@ -2385,4 +2385,516 @@ router.delete('/status-info/all', async (req, res) => {
   }
 });
 
+/**
+ * 获取获奖记录列表
+ */
+router.get('/awards', async (req, res) => {
+  try {
+    const {
+      page = 1,
+      pageSize = 20,
+      name,
+      department,
+      award_name,
+      award_year,
+      sortField,
+      sortOrder
+    } = req.query;
+
+    console.log('收到获奖记录请求:', { page, pageSize, name, department, award_name, award_year, sortField, sortOrder });
+
+    const pool = req.pool;
+    const connection = await pool.getConnection();
+
+    try {
+      let whereConditions = [];
+      let params = [];
+
+      if (name) {
+        whereConditions.push('name LIKE ?');
+        params.push(`%${name}%`);
+      }
+
+      if (department) {
+        whereConditions.push('department LIKE ?');
+        params.push(`%${department}%`);
+      }
+
+      if (award_name) {
+        whereConditions.push('award_name LIKE ?');
+        params.push(`%${award_name}%`);
+      }
+
+      if (award_year) {
+        whereConditions.push('award_year = ?');
+        params.push(award_year);
+      }
+
+      const whereClause = whereConditions.length > 0 ?
+        `WHERE ${whereConditions.join(' AND ')}` : '';
+
+      // 获取总数
+      const countSql = `SELECT COUNT(*) as total FROM employee_awards ${whereClause}`;
+      const [countResult] = await connection.execute(countSql, params);
+      const total = countResult[0].total;
+
+      // 获取分页数据
+      const limit = Number.parseInt(pageSize, 10) || 20;
+      const offset = (Number.parseInt(page, 10) - 1) * limit;
+      const dataSql = `
+        SELECT
+          id, award_year, award_date, name, department, entry_date,
+          award_month, award_name, award_amount, remarks, created_at, updated_at
+        FROM employee_awards
+        ${whereClause}
+        ${buildAwardsOrderClause(sortField, sortOrder)}
+        LIMIT ${limit} OFFSET ${offset}
+      `;
+
+      console.log('执行获奖记录查询SQL:', dataSql);
+      console.log('执行获奖记录查询参数:', params);
+      const [rows] = await connection.execute(dataSql, params);
+
+      // 安全的日期格式化函数
+      const safeFormatDate = (date) => {
+        if (!date) return null;
+        if (date instanceof Date) {
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        }
+        if (typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          return date;
+        }
+        return date;
+      };
+
+      // 转换数据格式
+      const transformedRows = rows.map(row => ({
+        ...row,
+        entry_date: safeFormatDate(row.entry_date),
+        created_at: safeFormatDate(row.created_at),
+        updated_at: safeFormatDate(row.updated_at)
+      }));
+
+      res.json({
+        data: transformedRows,
+        total,
+        page: parseInt(page),
+        pageSize: parseInt(pageSize),
+        totalPages: Math.ceil(total / pageSize)
+      });
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('获取获奖记录失败:', error);
+    res.status(500).json({ error: '获取获奖记录失败' });
+  }
+});
+
+/**
+ * 获取获奖记录筛选选项
+ */
+router.get('/awards/filter-options', async (req, res) => {
+  try {
+    console.log('收到获奖记录筛选选项请求');
+
+    const pool = req.pool;
+    const connection = await pool.getConnection();
+
+    try {
+      // 获取部门选项
+      const [departments] = await connection.execute(`
+        SELECT DISTINCT department as value, department as label
+        FROM employee_awards
+        WHERE department IS NOT NULL AND department != ''
+        ORDER BY department
+      `);
+
+      // 获取获奖年份选项
+      const [years] = await connection.execute(`
+        SELECT DISTINCT award_year as value, award_year as label
+        FROM employee_awards
+        WHERE award_year IS NOT NULL
+        ORDER BY award_year DESC
+      `);
+
+      // 获取奖项名称选项
+      const [awardNames] = await connection.execute(`
+        SELECT DISTINCT award_name as value, award_name as label
+        FROM employee_awards
+        WHERE award_name IS NOT NULL AND award_name != ''
+        ORDER BY award_name
+      `);
+
+      res.json({
+        departments: departments || [],
+        years: years || [],
+        awardNames: awardNames || []
+      });
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('获取获奖记录筛选选项失败:', error);
+    res.status(500).json({ error: '获取获奖记录筛选选项失败' });
+  }
+});
+
+/**
+ * 添加获奖记录
+ */
+router.post('/awards', async (req, res) => {
+  try {
+    const awardData = req.body;
+    console.log('收到添加获奖记录请求:', awardData);
+
+    const pool = req.pool;
+    const connection = await pool.getConnection();
+
+    try {
+      const insertSql = `
+        INSERT INTO employee_awards (
+          award_year, award_date, name, department, entry_date,
+          award_month, award_name, award_amount, remarks
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `;
+
+      const [result] = await connection.execute(insertSql, [
+        awardData.award_year,
+        awardData.award_date,
+        awardData.name,
+        awardData.department,
+        awardData.entry_date,
+        awardData.award_month,
+        awardData.award_name,
+        awardData.award_amount || 0,
+        awardData.remarks
+      ]);
+
+      res.json({
+        success: true,
+        message: '获奖记录添加成功',
+        awardId: result.insertId
+      });
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('添加获奖记录失败:', error);
+    res.status(500).json({ error: '添加获奖记录失败' });
+  }
+});
+
+/**
+ * 更新获奖记录
+ */
+router.put('/awards/:id', async (req, res) => {
+  try {
+    const awardId = req.params.id;
+    const updateData = req.body;
+    console.log('收到更新获奖记录请求:', { awardId, updateData });
+
+    const pool = req.pool;
+    const connection = await pool.getConnection();
+
+    try {
+      const updateSql = `
+        UPDATE employee_awards
+        SET award_year = ?, award_date = ?, name = ?, department = ?, entry_date = ?,
+            award_month = ?, award_name = ?, award_amount = ?, remarks = ?
+        WHERE id = ?
+      `;
+
+      const [result] = await connection.execute(updateSql, [
+        updateData.award_year,
+        updateData.award_date,
+        updateData.name,
+        updateData.department,
+        updateData.entry_date,
+        updateData.award_month,
+        updateData.award_name,
+        updateData.award_amount || 0,
+        updateData.remarks,
+        awardId
+      ]);
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ error: '获奖记录不存在' });
+      }
+
+      res.json({
+        success: true,
+        message: '获奖记录更新成功'
+      });
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('更新获奖记录失败:', error);
+    res.status(500).json({ error: '更新获奖记录失败' });
+  }
+});
+
+/**
+ * 删除获奖记录
+ */
+router.delete('/awards/:id', async (req, res) => {
+  try {
+    const awardId = req.params.id;
+    console.log('收到删除获奖记录请求:', awardId);
+
+    const pool = req.pool;
+    const connection = await pool.getConnection();
+
+    try {
+      const deleteSql = `DELETE FROM employee_awards WHERE id = ?`;
+      const [result] = await connection.execute(deleteSql, [awardId]);
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ error: '获奖记录不存在' });
+      }
+
+      res.json({
+        success: true,
+        message: '获奖记录删除成功'
+      });
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('删除获奖记录失败:', error);
+    res.status(500).json({ error: '删除获奖记录失败' });
+  }
+});
+
+/**
+ * 导出获奖记录
+ */
+router.get('/awards/export', async (req, res) => {
+  try {
+    const { name, department, award_name, award_year } = req.query;
+    console.log('收到获奖记录导出请求:', { name, department, award_name, award_year });
+
+    const pool = req.pool;
+    const connection = await pool.getConnection();
+
+    try {
+      // 构建WHERE条件
+      let whereConditions = [];
+      let params = [];
+
+      if (name) {
+        whereConditions.push('name LIKE ?');
+        params.push(`%${name}%`);
+      }
+
+      if (department) {
+        whereConditions.push('department LIKE ?');
+        params.push(`%${department}%`);
+      }
+
+      if (award_name) {
+        whereConditions.push('award_name LIKE ?');
+        params.push(`%${award_name}%`);
+      }
+
+      if (award_year) {
+        whereConditions.push('award_year = ?');
+        params.push(award_year);
+      }
+
+      const whereClause = whereConditions.length > 0 ?
+        `WHERE ${whereConditions.join(' AND ')}` : '';
+
+      // 查询employee_awards表的所有字段
+      const dataSql = `
+        SELECT *
+        FROM employee_awards
+        ${whereClause}
+        ORDER BY award_year DESC, award_date DESC
+      `;
+
+      console.log('导出获奖记录SQL:', dataSql);
+      console.log('导出获奖记录参数:', params);
+      const [rows] = await connection.execute(dataSql, params);
+
+      // 直接返回employee_awards表的所有数据，稳健格式化日期字段
+      const safeFormatDate = (val) => {
+        if (!val) return '';
+        try {
+          const d = new Date(val);
+          if (isNaN(d.getTime())) return '';
+          // 使用本地时间格式化，避免时区转换
+          const year = d.getFullYear();
+          const month = String(d.getMonth() + 1).padStart(2, '0');
+          const day = String(d.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        } catch (e) {
+          return '';
+        }
+      };
+
+      const exportData = rows.map(row => ({
+        获奖年份: row.award_year || '',
+        获奖时间: row.award_date || '',
+        姓名: row.name || '',
+        部门: row.department || '',
+        入职时间: safeFormatDate(row.entry_date),
+        获奖月份: row.award_month || '',
+        奖项: row.award_name || '',
+        金额: (row.award_amount ?? 0).toString(),
+        备注: row.remarks || '',
+        创建时间: safeFormatDate(row.created_at),
+        更新时间: safeFormatDate(row.updated_at)
+      }));
+
+      res.json({
+        success: true,
+        data: exportData,
+        total: exportData.length
+      });
+
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('导出获奖记录失败:', error);
+    res.status(500).json({ error: '导出获奖记录失败', message: error.message });
+  }
+});
+
+/**
+ * 导入获奖记录
+ */
+router.post('/awards/import', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: '请选择要上传的Excel文件' });
+    }
+
+    console.log('收到获奖记录Excel导入请求，文件大小:', req.file.size);
+
+    // 解析Excel文件
+    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+    console.log('Excel解析完成，共', jsonData.length, '行数据');
+    if (jsonData.length > 0) {
+      console.log('Excel数据示例（第一行）:', jsonData[0]);
+      console.log('Excel表头字段:', Object.keys(jsonData[0]));
+    }
+
+    if (jsonData.length === 0) {
+      return res.status(400).json({ success: false, error: 'Excel文件中没有数据' });
+    }
+
+    const pool = req.pool;
+    const connection = await pool.getConnection();
+
+    try {
+      await connection.beginTransaction();
+
+      let successCount = 0;
+      let errorCount = 0;
+      const errors = [];
+
+      for (let i = 0; i < jsonData.length; i++) {
+        const row = jsonData[i];
+
+        try {
+          // 验证必填字段
+          const name = row['姓名'] || row['name'];
+          const award_name = row['奖项'] || row['award_name'];
+          const award_year = row['获奖年份'] || row['award_year'];
+          const award_date = row['获奖时间'] || row['award_date'];
+
+          if (!name || !award_name || !award_year || !award_date) {
+            errors.push(`第${i + 2}行：缺少必填字段（姓名、奖项、获奖年份、获奖时间）`);
+            errorCount++;
+            continue;
+          }
+
+          // 直接插入employee_awards表
+          const insertSql = `
+            INSERT INTO employee_awards (
+              award_year, award_date, name, department, entry_date,
+              award_month, award_name, award_amount, remarks
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `;
+
+          // 辅助函数：解析日期
+          const parseExcelDate = (dateValue) => {
+            if (!dateValue) return null;
+            try {
+              let date;
+              if (typeof dateValue === 'number') {
+                date = new Date((dateValue - 25569) * 86400 * 1000);
+              } else {
+                date = new Date(dateValue);
+              }
+
+              if (isNaN(date.getTime())) return null;
+
+              const year = date.getFullYear();
+              const month = String(date.getMonth() + 1).padStart(2, '0');
+              const day = String(date.getDate()).padStart(2, '0');
+              return `${year}-${month}-${day}`;
+            } catch (e) {
+              return null;
+            }
+          };
+
+          await connection.execute(insertSql, [
+            award_year,
+            award_date,
+            name,
+            row['部门'] || row['department'] || null,
+            parseExcelDate(row['入职时间'] || row['entry_date']),
+            row['获奖月份'] || row['award_month'] || null,
+            award_name,
+            parseFloat(row['金额'] || row['award_amount'] || 0),
+            row['备注'] || row['remarks'] || null
+          ]);
+
+          successCount++;
+
+        } catch (error) {
+          console.error(`处理第${i + 2}行数据时出错:`, error);
+          errors.push(`第${i + 2}行：${error.message}`);
+          errorCount++;
+        }
+      }
+
+      await connection.commit();
+
+      res.json({
+        success: true,
+        message: `导入完成！成功：${successCount}条，失败：${errorCount}条`,
+        successCount,
+        errorCount,
+        errors: errors.slice(0, 10)
+      });
+
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+
+  } catch (error) {
+    console.error('Excel导入失败:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Excel导入失败',
+      message: error.message
+    });
+  }
+});
+
 module.exports = router;
