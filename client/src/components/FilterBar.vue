@@ -208,41 +208,44 @@
             </el-select>
           </div>
 
-          <div class="filter-item">
-            <label class="filter-label">年份</label>
-            <el-select
-              v-model="localFilters.year"
-              placeholder="选择年份"
-              clearable
-              size="default"
-              @change="handleFilterChange"
-            >
-              <el-option
-                v-for="year in filterOptions.years"
-                :key="year.value"
-                :label="year.label + '年'"
-                :value="year.value"
-              />
-            </el-select>
-          </div>
+          <!-- 人才流失分析页面不显示年月筛选器 -->
+          <template v-if="activeTab !== 'turnover'">
+            <div class="filter-item">
+              <label class="filter-label">年份</label>
+              <el-select
+                v-model="localFilters.year"
+                placeholder="选择年份"
+                clearable
+                size="default"
+                @change="handleFilterChange"
+              >
+                <el-option
+                  v-for="year in filterOptions.years"
+                  :key="year.value"
+                  :label="year.label + '年'"
+                  :value="year.value"
+                />
+              </el-select>
+            </div>
 
-          <div class="filter-item">
-            <label class="filter-label">月份</label>
-            <el-select
-              v-model="localFilters.month"
-              placeholder="全年"
-              clearable
-              size="default"
-              @change="handleFilterChange"
-            >
-              <el-option
-                v-for="month in months"
-                :key="month.value"
-                :label="month.label"
-                :value="month.value"
-              />
-            </el-select>
-          </div>
+            <div class="filter-item">
+              <label class="filter-label">月份</label>
+              <el-select
+                v-model="localFilters.month"
+                placeholder="全年"
+                clearable
+                size="default"
+                @change="handleFilterChange"
+              >
+                <el-option
+                  v-for="month in months"
+                  :key="month.value"
+                  :label="month.label"
+                  :value="month.value"
+                />
+              </el-select>
+            </div>
+          </template>
 
           <div class="filter-item">
             <label class="filter-label">日期范围</label>

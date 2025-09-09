@@ -1150,7 +1150,19 @@ const handleFiltersChange = async (newFilters) => {
 // 处理图表点击事件
 const handleChartClick = (event) => {
   console.log('图表点击事件:', event)
-  dashboardStore.setChartFilter(event.type, event.value)
+  
+  // 如果是部门异动图表，应该设置部门筛选而不是部门异动筛选
+  if (event.type === 'departmentTransfer') {
+    dashboardStore.setChartFilter('department', event.value)
+    // 重新加载所有数据，包括部门异动数据
+    Promise.all([
+      dashboardStore.refreshAll(),
+      fetchDepartmentTransferData()
+    ])
+  } else {
+    dashboardStore.setChartFilter(event.type, event.value)
+  }
+  
   // ElMessage.success(`已筛选${getFilterTypeName(event.type)}: ${event.value}`)
 }
 
@@ -1159,7 +1171,8 @@ const getFilterTypeName = (type) => {
   const typeNames = {
     workAge: '司龄',
     education: '学历',
-    department: '部门'
+    department: '部门',
+    departmentTransfer: '部门异动'
   }
   return typeNames[type] || type
 }
@@ -1476,7 +1489,10 @@ const turnoverFilters = computed(() => {
     position: chartFilters.position || '',
     tenure: chartFilters.tenure || '',
     // 如果图表筛选中有部门，优先使用图表筛选的部门
-    department: chartFilters.department || baseFilters.department || ''
+    department: chartFilters.department || baseFilters.department || '',
+    // 确保组织区域参数正确传递
+    organizationRegion: baseFilters.organizationRegion || '',
+    region: baseFilters.region || ''
   }
 })
 

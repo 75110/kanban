@@ -511,7 +511,7 @@ async function getCurrentStats(pool, { organizationRegion, region, department, w
 
     // 异动人数（从personnel_changes表统计，保持原有逻辑）
     const { where: transferWhere, params: transferParams } = buildWhere('pc', {
-      organizationRegion, region, department, workAge, education, hometown, year, month, dateField: 'change_date'
+      organizationRegion, region, department, workAge, education, hometown, year, month, dateRange, dateField: 'change_date'
     });
     const [transferResult] = await connection.execute(
       `SELECT COUNT(*) as count FROM personnel_changes pc ${transferWhere}`,
@@ -754,7 +754,7 @@ router.get('/filter-options', async (req, res) => {
  */
 router.get('/turnover-stats', async (req, res) => {
   try {
-    const { region, department, year, month, reason, position, tenure } = req.query;
+    const { organizationRegion, region, department, year, month, dateRange, reason, position, tenure } = req.query;
     const pool = req.pool;
 
     // 构建查询条件
@@ -765,7 +765,27 @@ router.get('/turnover-stats', async (req, res) => {
     whereConditions.push('ei.status = ?');
     params.push('离职');
 
-    if (region) {
+    // 组织区域／区域筛选
+    if (organizationRegion && region) {
+      // 同时选择了组织区域和具体区域，取交集
+      const orgList = toRegionList(organizationRegion)
+      if (orgList.includes(region)) {
+        // 具体区域属于组织区域，只筛选具体区域
+        whereConditions.push('ei.region = ?')
+        params.push(region)
+      } else {
+        // 具体区域不属于组织区域，返回空结果
+        whereConditions.push('ei.region = ?')
+        params.push('__NO_MATCH__')
+      }
+    } else if (organizationRegion) {
+      // 只选择了组织区域
+      const list = toRegionList(organizationRegion)
+      if (list.length) {
+        whereConditions.push(`ei.region IN (${list.map(() => '?').join(',')})`)
+        params.push(...list)
+      }
+    } else if (region) {
       whereConditions.push('ei.region = ?');
       params.push(region);
     }
@@ -803,11 +823,16 @@ router.get('/turnover-stats', async (req, res) => {
       }
     }
 
-    // 日期范围条件
-    const dateRange = getDateRange(year, month);
-    if (dateRange) {
+    // 日期范围条件 - 优先使用dateRange，如果没有则使用year/month
+    if (dateRange && dateRange.length === 2) {
       whereConditions.push('ei.resignation_date BETWEEN ? AND ?');
-      params.push(dateRange.start, dateRange.end);
+      params.push(dateRange[0], dateRange[1]);
+    } else {
+      const dateRangeFromYearMonth = getDateRange(year, month);
+      if (dateRangeFromYearMonth) {
+        whereConditions.push('ei.resignation_date BETWEEN ? AND ?');
+        params.push(dateRangeFromYearMonth.start, dateRangeFromYearMonth.end);
+      }
     }
 
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
@@ -894,7 +919,7 @@ router.get('/turnover-stats', async (req, res) => {
  */
 router.get('/turnover-department-distribution', async (req, res) => {
   try {
-    const { region, department, year, month, reason, position, tenure } = req.query;
+    const { organizationRegion, region, department, year, month, dateRange, reason, position, tenure } = req.query;
     const pool = req.pool;
 
     let whereConditions = [];
@@ -904,7 +929,27 @@ router.get('/turnover-department-distribution', async (req, res) => {
     whereConditions.push('ei.status = ?');
     params.push('离职');
 
-    if (region) {
+    // 组织区域／区域筛选
+    if (organizationRegion && region) {
+      // 同时选择了组织区域和具体区域，取交集
+      const orgList = toRegionList(organizationRegion)
+      if (orgList.includes(region)) {
+        // 具体区域属于组织区域，只筛选具体区域
+        whereConditions.push('ei.region = ?')
+        params.push(region)
+      } else {
+        // 具体区域不属于组织区域，返回空结果
+        whereConditions.push('ei.region = ?')
+        params.push('__NO_MATCH__')
+      }
+    } else if (organizationRegion) {
+      // 只选择了组织区域
+      const list = toRegionList(organizationRegion)
+      if (list.length) {
+        whereConditions.push(`ei.region IN (${list.map(() => '?').join(',')})`)
+        params.push(...list)
+      }
+    } else if (region) {
       whereConditions.push('ei.region = ?');
       params.push(region);
     }
@@ -942,10 +987,16 @@ router.get('/turnover-department-distribution', async (req, res) => {
       }
     }
 
-    const dateRange = getDateRange(year, month);
-    if (dateRange) {
+    // 日期范围条件 - 优先使用dateRange，如果没有则使用year/month
+    if (dateRange && dateRange.length === 2) {
       whereConditions.push('ei.resignation_date BETWEEN ? AND ?');
-      params.push(dateRange.start, dateRange.end);
+      params.push(dateRange[0], dateRange[1]);
+    } else {
+      const dateRangeFromYearMonth = getDateRange(year, month);
+      if (dateRangeFromYearMonth) {
+        whereConditions.push('ei.resignation_date BETWEEN ? AND ?');
+        params.push(dateRangeFromYearMonth.start, dateRangeFromYearMonth.end);
+      }
     }
 
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
@@ -983,7 +1034,7 @@ router.get('/turnover-department-distribution', async (req, res) => {
  */
 router.get('/turnover-reason-analysis', async (req, res) => {
   try {
-    const { region, department, year, month, position, tenure } = req.query;
+    const { organizationRegion, region, department, year, month, dateRange, position, tenure } = req.query;
     const pool = req.pool;
 
     let whereConditions = [];
@@ -993,7 +1044,27 @@ router.get('/turnover-reason-analysis', async (req, res) => {
     whereConditions.push('ei.status = ?');
     params.push('离职');
 
-    if (region) {
+    // 组织区域／区域筛选
+    if (organizationRegion && region) {
+      // 同时选择了组织区域和具体区域，取交集
+      const orgList = toRegionList(organizationRegion)
+      if (orgList.includes(region)) {
+        // 具体区域属于组织区域，只筛选具体区域
+        whereConditions.push('ei.region = ?')
+        params.push(region)
+      } else {
+        // 具体区域不属于组织区域，返回空结果
+        whereConditions.push('ei.region = ?')
+        params.push('__NO_MATCH__')
+      }
+    } else if (organizationRegion) {
+      // 只选择了组织区域
+      const list = toRegionList(organizationRegion)
+      if (list.length) {
+        whereConditions.push(`ei.region IN (${list.map(() => '?').join(',')})`)
+        params.push(...list)
+      }
+    } else if (region) {
       whereConditions.push('ei.region = ?');
       params.push(region);
     }
@@ -1026,10 +1097,16 @@ router.get('/turnover-reason-analysis', async (req, res) => {
       }
     }
 
-    const dateRange = getDateRange(year, month);
-    if (dateRange) {
+    // 日期范围条件 - 优先使用dateRange，如果没有则使用year/month
+    if (dateRange && dateRange.length === 2) {
       whereConditions.push('ei.resignation_date BETWEEN ? AND ?');
-      params.push(dateRange.start, dateRange.end);
+      params.push(dateRange[0], dateRange[1]);
+    } else {
+      const dateRangeFromYearMonth = getDateRange(year, month);
+      if (dateRangeFromYearMonth) {
+        whereConditions.push('ei.resignation_date BETWEEN ? AND ?');
+        params.push(dateRangeFromYearMonth.start, dateRangeFromYearMonth.end);
+      }
     }
 
     // 添加离职原因不为空的条件
@@ -1070,7 +1147,7 @@ router.get('/turnover-reason-analysis', async (req, res) => {
  */
 router.get('/turnover-department-stats', async (req, res) => {
   try {
-    const { region, department, year, month, reason, position, tenure } = req.query;
+    const { organizationRegion, region, department, year, month, dateRange, reason, position, tenure } = req.query;
     const pool = req.pool;
 
     let whereConditions = [];
@@ -1080,7 +1157,27 @@ router.get('/turnover-department-stats', async (req, res) => {
     whereConditions.push('ei.status = ?');
     params.push('离职');
 
-    if (region) {
+    // 组织区域／区域筛选
+    if (organizationRegion && region) {
+      // 同时选择了组织区域和具体区域，取交集
+      const orgList = toRegionList(organizationRegion)
+      if (orgList.includes(region)) {
+        // 具体区域属于组织区域，只筛选具体区域
+        whereConditions.push('ei.region = ?')
+        params.push(region)
+      } else {
+        // 具体区域不属于组织区域，返回空结果
+        whereConditions.push('ei.region = ?')
+        params.push('__NO_MATCH__')
+      }
+    } else if (organizationRegion) {
+      // 只选择了组织区域
+      const list = toRegionList(organizationRegion)
+      if (list.length) {
+        whereConditions.push(`ei.region IN (${list.map(() => '?').join(',')})`)
+        params.push(...list)
+      }
+    } else if (region) {
       whereConditions.push('ei.region = ?');
       params.push(region);
     }
@@ -1118,10 +1215,16 @@ router.get('/turnover-department-stats', async (req, res) => {
       }
     }
 
-    const dateRange = getDateRange(year, month);
-    if (dateRange) {
+    // 日期范围条件 - 优先使用dateRange，如果没有则使用year/month
+    if (dateRange && dateRange.length === 2) {
       whereConditions.push('ei.resignation_date BETWEEN ? AND ?');
-      params.push(dateRange.start, dateRange.end);
+      params.push(dateRange[0], dateRange[1]);
+    } else {
+      const dateRangeFromYearMonth = getDateRange(year, month);
+      if (dateRangeFromYearMonth) {
+        whereConditions.push('ei.resignation_date BETWEEN ? AND ?');
+        params.push(dateRangeFromYearMonth.start, dateRangeFromYearMonth.end);
+      }
     }
 
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
@@ -1158,7 +1261,7 @@ router.get('/turnover-department-stats', async (req, res) => {
  */
 router.get('/turnover-position-distribution', async (req, res) => {
   try {
-    const { region, department, year, month, reason, tenure } = req.query;
+    const { organizationRegion, region, department, year, month, dateRange, reason, tenure } = req.query;
     const pool = req.pool;
 
     let whereConditions = [];
@@ -1168,7 +1271,27 @@ router.get('/turnover-position-distribution', async (req, res) => {
     whereConditions.push('ei.status = ?');
     params.push('离职');
 
-    if (region) {
+    // 组织区域／区域筛选
+    if (organizationRegion && region) {
+      // 同时选择了组织区域和具体区域，取交集
+      const orgList = toRegionList(organizationRegion)
+      if (orgList.includes(region)) {
+        // 具体区域属于组织区域，只筛选具体区域
+        whereConditions.push('ei.region = ?')
+        params.push(region)
+      } else {
+        // 具体区域不属于组织区域，返回空结果
+        whereConditions.push('ei.region = ?')
+        params.push('__NO_MATCH__')
+      }
+    } else if (organizationRegion) {
+      // 只选择了组织区域
+      const list = toRegionList(organizationRegion)
+      if (list.length) {
+        whereConditions.push(`ei.region IN (${list.map(() => '?').join(',')})`)
+        params.push(...list)
+      }
+    } else if (region) {
       whereConditions.push('ei.region = ?');
       params.push(region);
     }
@@ -1201,10 +1324,16 @@ router.get('/turnover-position-distribution', async (req, res) => {
       }
     }
 
-    const dateRange = getDateRange(year, month);
-    if (dateRange) {
+    // 日期范围条件 - 优先使用dateRange，如果没有则使用year/month
+    if (dateRange && dateRange.length === 2) {
       whereConditions.push('ei.resignation_date BETWEEN ? AND ?');
-      params.push(dateRange.start, dateRange.end);
+      params.push(dateRange[0], dateRange[1]);
+    } else {
+      const dateRangeFromYearMonth = getDateRange(year, month);
+      if (dateRangeFromYearMonth) {
+        whereConditions.push('ei.resignation_date BETWEEN ? AND ?');
+        params.push(dateRangeFromYearMonth.start, dateRangeFromYearMonth.end);
+      }
     }
 
     // 添加岗位不为空的条件
@@ -1244,7 +1373,7 @@ router.get('/turnover-position-distribution', async (req, res) => {
  */
 router.get('/turnover-tenure-distribution', async (req, res) => {
   try {
-    const { region, department, year, month, reason, position } = req.query;
+    const { organizationRegion, region, department, year, month, dateRange, reason, position } = req.query;
     const pool = req.pool;
 
     let whereConditions = [];
@@ -1254,7 +1383,27 @@ router.get('/turnover-tenure-distribution', async (req, res) => {
     whereConditions.push('ei.status = ?');
     params.push('离职');
 
-    if (region) {
+    // 组织区域／区域筛选
+    if (organizationRegion && region) {
+      // 同时选择了组织区域和具体区域，取交集
+      const orgList = toRegionList(organizationRegion)
+      if (orgList.includes(region)) {
+        // 具体区域属于组织区域，只筛选具体区域
+        whereConditions.push('ei.region = ?')
+        params.push(region)
+      } else {
+        // 具体区域不属于组织区域，返回空结果
+        whereConditions.push('ei.region = ?')
+        params.push('__NO_MATCH__')
+      }
+    } else if (organizationRegion) {
+      // 只选择了组织区域
+      const list = toRegionList(organizationRegion)
+      if (list.length) {
+        whereConditions.push(`ei.region IN (${list.map(() => '?').join(',')})`)
+        params.push(...list)
+      }
+    } else if (region) {
       whereConditions.push('ei.region = ?');
       params.push(region);
     }
@@ -1274,10 +1423,16 @@ router.get('/turnover-tenure-distribution', async (req, res) => {
       params.push(position);
     }
 
-    const dateRange = getDateRange(year, month);
-    if (dateRange) {
+    // 日期范围条件 - 优先使用dateRange，如果没有则使用year/month
+    if (dateRange && dateRange.length === 2) {
       whereConditions.push('ei.resignation_date BETWEEN ? AND ?');
-      params.push(dateRange.start, dateRange.end);
+      params.push(dateRange[0], dateRange[1]);
+    } else {
+      const dateRangeFromYearMonth = getDateRange(year, month);
+      if (dateRangeFromYearMonth) {
+        whereConditions.push('ei.resignation_date BETWEEN ? AND ?');
+        params.push(dateRangeFromYearMonth.start, dateRangeFromYearMonth.end);
+      }
     }
 
     // 添加必要字段不为空的条件
@@ -1330,7 +1485,7 @@ router.get('/turnover-tenure-distribution', async (req, res) => {
  */
 router.get('/department-transfer-stats', async (req, res) => {
   try {
-    const { region, department, year, month } = req.query;
+    const { region, department, year, month, dateRange } = req.query;
     const pool = req.pool;
 
     // 构建查询条件
@@ -1347,11 +1502,16 @@ router.get('/department-transfer-stats', async (req, res) => {
       params.push(department);
     }
 
-    // 日期范围条件
-    const dateRange = getDateRange(year, month);
-    if (dateRange) {
+    // 日期范围条件 - 优先使用dateRange，如果没有则使用year/month
+    if (dateRange && dateRange.length === 2) {
       whereConditions.push('pc.change_date BETWEEN ? AND ?');
-      params.push(dateRange.start, dateRange.end);
+      params.push(dateRange[0], dateRange[1]);
+    } else {
+      const dateRangeFromYearMonth = getDateRange(year, month);
+      if (dateRangeFromYearMonth) {
+        whereConditions.push('pc.change_date BETWEEN ? AND ?');
+        params.push(dateRangeFromYearMonth.start, dateRangeFromYearMonth.end);
+      }
     }
 
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
