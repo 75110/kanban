@@ -231,7 +231,12 @@ const fetchOptions = async () => {
     // 获取员工列表
     const employeeResponse = await commonApi.getCommonData()
     employees.value = employeeResponse.employees || []
-    departments.value = employeeResponse.departments || []
+    
+    // 正确解析部门数据格式：将对象数组转换为字符串数组
+    const departmentsData = employeeResponse.departments || []
+    departments.value = departmentsData.map(dept => 
+      typeof dept === 'string' ? dept : dept.department || dept.id
+    )
 
     // 获取奖项名称列表
     const awardResponse = await employeeApi.getAwardsFilterOptions()
