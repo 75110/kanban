@@ -34,7 +34,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import FilterBar from '../components/FilterBar.vue'
-import ChartCard from '../components/ChartCard.vue'
+import ChartCard from '../components/common/charts/ChartCard.vue'
 import { householdMapApi } from '../api/household-map'
 import * as echarts from 'echarts'
 

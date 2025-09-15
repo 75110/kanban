@@ -405,8 +405,8 @@ import { getEmployeeProfile, getEmployeeList } from '@/api/employee-profile.js'
 import { householdMapApi } from '../api/household-map'
 import { loadChinaMap, loadProvinceMap } from '../utils/map'
 import FilterBar from '../components/FilterBar.vue'
-import StatCard from '../components/StatCard.vue'
-import ChartCard from '../components/ChartCard.vue'
+import StatCard from '../components/common/charts/StatCard.vue'
+import ChartCard from '../components/common/charts/ChartCard.vue'
 import PersonnelArchiveSection from '../components/PersonnelArchiveSection.vue'
 
 const dashboardStore = useDashboardStore()
@@ -3129,7 +3129,7 @@ onMounted(async () => {
 @media (max-width: 480px) {
   .dashboard {
     padding: 8px;
-    background: #f5f7fa;
+    background: #ffffff;
   }
 
   .stats-grid {
