@@ -15,7 +15,7 @@ app.use(cors());
 app.use(express.json());
 
 // 静态文件服务 - 提供前端构建文件
-app.use(express.static(path.join(__dirname, '../client/dist')));
+app.use(express.static(path.join(__dirname, '../dist')));
 
 // 数据库连接配置
 const dbConfig = {
