@@ -1,0 +1,30 @@
+name: Build Docker Image
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: 
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+      - name: Build Docker image
+        id: build
+        run: |
+            # 获取日期作为镜像标签
+            date=$(date +%Y%m%d)
+            # 将获取的日期保存到环境变量中
+            echo "date=${date}" >> "$GITHUB_OUTPUT"
+            docker build -t kanban-dashboard:${date} .
+        # 私有镜像，导出为tar文件
+      - name: Export Docker image
+        run: docker save kanban-dashboard:${{ steps.build.outputs.date }} -o kanban-dashboard_${{ steps.build.outputs.date }}.tar
+      - name: Upload Docker image
+        uses: actions/upload-artifact@v4
+        with:
+          name: kanban-dashboard_${{ steps.build.outputs.date }}.tar
+          path: kanban-dashboard_${{ steps.build.outputs.date }}.tar
